@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FuelMaster Enterprise</title>
+    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="theme-switch-wrapper">
+        <label class="theme-switch" for="checkbox">
+            <input type="checkbox" id="checkbox" onchange="toggleTheme()">
+            <div class="slider"></div>
+        </label>
+    </div>
+
+    <div id="login-screen" class="login-wrapper">
+        <div class="login-box">
+            <div style="font-size:3rem; margin-bottom:10px;">⛽</div>
+            <h1>FuelMaster</h1>
+            <p>Enterprise Admin Portal</p>
+            <form onsubmit="event.preventDefault(); handleLogin();">
+                <input type="tel" id="loginMobile" class="login-input" placeholder="Mobile Number" maxlength="10" required>
+                <input type="password" id="loginPass" class="login-input" placeholder="Password" required>
+                
+                <div style="text-align:left; margin-bottom:15px; display:flex; align-items:center; gap:8px; font-size:0.9rem;">
+                    <input type="checkbox" id="rememberMe" style="width:auto; margin:0;">
+                    <label for="rememberMe" style="margin:0; text-transform:none; color:white;">Remember Me</label>
+                </div>
+
+                <button type="submit" class="btn-auth">AUTHENTICATE</button>
+            </form>
+            <p id="login-error" style="color:#ef4444; margin-top:10px; font-size:0.85rem;"></p>
+            <div id="setup-hint" style="margin-top:20px; font-size:0.8rem; opacity:0.7; display:none;">
+                 <a href="#" style="color:#60a5fa; text-decoration:none;" onclick="showSetup()">Run First-Time Setup</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="setup-modal" class="modal">
+        <div class="modal-content" style="max-width:400px; height:auto;">
+            <div class="modal-header"><h2>First Time Boot</h2></div>
+            <div class="modal-body">
+                <p>Create Master Account (Mobile Linked).</p>
+                <input type="tel" id="setupMobile" class="form-input" placeholder="Mobile Number">
+                <input type="password" id="setupPass" class="form-input" placeholder="Password">
+                <input type="text" id="setupNick" class="form-input" placeholder="Nickname">
+                <input type="text" id="setupDiscord" class="form-input" placeholder="Discord ID (Optional)">
+                <button class="btn-primary" onclick="runInitialSetup()" style="width:100%; margin-top:20px;">Deploy</button>
+            </div>
+            <div class="modal-footer"><button class="btn-text" onclick="closeModal('setup-modal')">Cancel</button></div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="layout" style="display:none;">
+        <aside class="sidebar">
+            <div class="brand"><i class="fa-solid fa-layer-group"></i> FM <span style="color:var(--accent);">ADMIN</span></div>
+            
+            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; margin-bottom:20px; border:1px solid var(--border); display:flex; align-items:center; gap:10px;">
+                <div style="width:35px; height:35px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; color:white;"><i class="fa-solid fa-user-astronaut"></i></div>
+                <div>
+                    <div id="admin-display-name" style="font-weight:bold; font-size:0.9rem; color:var(--text-main);">Loading...</div>
+                    <div style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Super Admin</div>
+                </div>
+            </div>
+
+            <nav>
+                <div onclick="showTab('global')" class="nav-link active"><i class="fa-solid fa-earth-americas"></i> Global</div>
+                <div onclick="showTab('pumps')" class="nav-link"><i class="fa-solid fa-gas-pump"></i> Stations</div>
+                <div onclick="showTab('admins')" class="nav-link"><i class="fa-solid fa-users-gear"></i> Admins</div>
+                <div onclick="showTab('settings')" class="nav-link"><i class="fa-solid fa-sliders"></i> Config</div>
+            </nav>
+            <button onclick="handleLogout()" class="logout-btn"><i class="fa-solid fa-power-off"></i> Logout</button>
+        </aside>
+
+        <main class="content">
+            <section id="tab-global" class="tab-pane active">
+                <header><h1>Global Operations</h1><p>System-wide controls.</p></header>
+                <div class="card" style="border-left:4px solid var(--danger);">
+                    <h3><i class="fa-solid fa-lock"></i> Emergency Lock</h3>
+                    <p>Lock all stations instantly.</p>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <input type="text" id="globalDowntimeMsg" class="form-input" placeholder="Reason...">
+                        <button class="btn-danger" onclick="toggleGlobalDowntime()">TOGGLE LOCK</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-pumps" class="tab-pane" style="display:none;">
+                <header>
+                    <h1>Station Manager</h1>
+                    <div class="header-actions" style="display:flex; gap:10px; margin-top:15px;">
+                        <div class="search-bar" style="flex:1; background:var(--bg-card); border:1px solid var(--border); padding:10px; border-radius:10px; display:flex; gap:10px;">
+                            <i class="fa-solid fa-search" style="color:var(--text-muted);"></i>
+                            <input type="text" id="pumpSearch" placeholder="Search stations..." onkeyup="filterPumps()" style="border:none; width:100%; outline:none; background:transparent; color:var(--text-main);">
+                        </div>
+                        <button class="btn-primary" onclick="openPumpModal()">+ New Station</button>
+                    </div>
+                </header>
+                <div id="pump-list" class="pump-grid"></div>
+            </section>
+
+            <section id="tab-admins" class="tab-pane" style="display:none;">
+                <header><h1>Admin Access</h1><p>Manage Super Admin privileges.</p></header>
+                <div class="grid-2">
+                    <div class="card">
+                        <h3><i class="fa-solid fa-user-plus"></i> Grant Access</h3>
+                        <div class="form-section">
+                            <label>Credentials</label>
+                            <input type="tel" id="newAdminMobile" class="form-input" placeholder="Mobile Number">
+                            <input type="password" id="newAdminPass" class="form-input" placeholder="Password" style="margin-top:5px;">
+                        </div>
+                        <div class="form-section">
+                            <label>Profile</label>
+                            <input type="text" id="newAdminNick" class="form-input" placeholder="Nickname">
+                            <input type="text" id="newAdminDiscord" class="form-input" placeholder="Discord ID (for tagging)" style="margin-top:5px;">
+                        </div>
+                        <button class="btn-primary" onclick="addNewAdmin()" style="width:100%;">Create Admin</button>
+                    </div>
+
+                    <div class="card">
+                        <h3><i class="fa-solid fa-users"></i> Active Super Admins</h3>
+                        <div id="super-admin-list" style="margin-top:15px; max-height: 300px; overflow-y: auto;">
+                            <p style="color:var(--text-muted);">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-settings" class="tab-pane" style="display:none;">
+                <header><h1>Configuration</h1></header>
+                <div class="card">
+                    <h3>Discord Integration</h3>
+                    <label>Webhook URL</label>
+                    <input type="text" id="confWebhook" class="form-input" placeholder="Webhook URL">
+                    <button class="btn-primary" onclick="saveGlobalConfig()" style="margin-top:15px;">Save</button>
+                </div>
+                <div class="card" style="margin-top:20px; border-color:var(--danger);">
+                    <h3 style="color:var(--danger);">Danger Zone</h3>
+                    <button class="btn-danger" onclick="nukeDatabase()">FACTORY RESET</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="modal-pump" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Configure Station</h2>
+                <button class="btn-text" onclick="closeModal('modal-pump')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editPumpId">
+                <div class="form-section">
+                    <label>Station Info</label>
+                    <div class="grid-2" style="display:grid; grid-template-columns:2fr 1fr; gap:10px;">
+                        <input type="text" id="inpName" class="form-input" placeholder="Station Name">
+                        <select id="inpTheme" class="form-input">
+                            <option value="bpcl">BPCL</option>
+                            <option value="iocl">IOCL</option>
+                            <option value="hpcl">HPCL</option>
+                            <option value="jio">Jio</option>
+                        </select>
+                    </div>
+                    <input type="text" id="inpNote" class="form-input" placeholder="Notes..." style="margin-top:10px;">
+                </div>
+                
+                <div class="form-section" style="background:rgba(59,130,246,0.05); padding:15px; border-radius:10px; border:1px dashed var(--accent);">
+                    <label style="color:var(--accent);">Admin Access (Mobile Login)</label>
+                    <input type="tel" id="inpAdminMobile" class="form-input" placeholder="e.g. 9876543210" maxlength="10">
+                    
+                    <div id="pass-container" style="margin-top:10px;">
+                        <input type="text" id="inpAdminPass" class="form-input" placeholder="Set Password">
+                    </div>
+                    <div id="reset-password-box" style="display:none; margin-top:10px;">
+                        <small style="color:var(--text-muted)">User exists. Password reset requires admin SDK or manual recreation.</small>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label>Tanks</label>
+                        <button class="btn-text" onclick="addTankRow()" style="padding:0; font-size:0.8rem;">+ Add Tank</button>
+                    </div>
+                    <div id="tank-container"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-text" onclick="closeModal('modal-pump')">Cancel</button>
+                <button class="btn-primary" onclick="savePump()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="admin.js"></script>
+</body>
+</html>
