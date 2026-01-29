@@ -3,197 +3,377 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FuelMaster Enterprise</title>
+    <title>FuelMaster Admin Console</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="admin.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
 </head>
 <body>
 
-    <div class="theme-switch-wrapper">
-        <label class="theme-switch" for="checkbox">
-            <input type="checkbox" id="checkbox" onchange="toggleTheme()">
-            <div class="slider"></div>
-        </label>
-    </div>
-
-    <div id="login-screen" class="login-wrapper">
-        <div class="login-box">
-            <div style="font-size:3rem; margin-bottom:10px;">⛽</div>
-            <h1>FuelMaster</h1>
-            <p>Enterprise Admin Portal</p>
-            <form onsubmit="event.preventDefault(); handleLogin();">
-                <input type="tel" id="loginMobile" class="login-input" placeholder="Mobile Number" maxlength="10" required>
-                <input type="password" id="loginPass" class="login-input" placeholder="Password" required>
-                
-                <div style="text-align:left; margin-bottom:15px; display:flex; align-items:center; gap:8px; font-size:0.9rem;">
-                    <input type="checkbox" id="rememberMe" style="width:auto; margin:0;">
-                    <label for="rememberMe" style="margin:0; text-transform:none; color:white;">Remember Me</label>
-                </div>
-
-                <button type="submit" class="btn-auth">AUTHENTICATE</button>
-            </form>
-            <p id="login-error" style="color:#ef4444; margin-top:10px; font-size:0.85rem;"></p>
-            <div id="setup-hint" style="margin-top:20px; font-size:0.8rem; opacity:0.7; display:none;">
-                 <a href="#" style="color:#60a5fa; text-decoration:none;" onclick="showSetup()">Run First-Time Setup</a>
-            </div>
-        </div>
-    </div>
-
-    <div id="setup-modal" class="modal">
-        <div class="modal-content" style="max-width:400px; height:auto;">
-            <div class="modal-header"><h2>First Time Boot</h2></div>
-            <div class="modal-body">
-                <p>Create Master Account (Mobile Linked).</p>
-                <input type="tel" id="setupMobile" class="form-input" placeholder="Mobile Number">
-                <input type="password" id="setupPass" class="form-input" placeholder="Password">
-                <input type="text" id="setupNick" class="form-input" placeholder="Nickname">
-                <input type="text" id="setupDiscord" class="form-input" placeholder="Discord ID (Optional)">
-                <button class="btn-primary" onclick="runInitialSetup()" style="width:100%; margin-top:20px;">Deploy</button>
-            </div>
-            <div class="modal-footer"><button class="btn-text" onclick="closeModal('setup-modal')">Cancel</button></div>
-        </div>
-    </div>
-
-    <div id="dashboard" class="layout" style="display:none;">
-        <aside class="sidebar">
-            <div class="brand"><i class="fa-solid fa-layer-group"></i> FM <span style="color:var(--accent);">ADMIN</span></div>
+    <div id="login-panel" class="login-wrapper">
+        <div class="login-card animate__animated animate__fadeInUp">
             
-            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; margin-bottom:20px; border:1px solid var(--border); display:flex; align-items:center; gap:10px;">
-                <div style="width:35px; height:35px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; color:white;"><i class="fa-solid fa-user-astronaut"></i></div>
-                <div>
-                    <div id="admin-display-name" style="font-weight:bold; font-size:0.9rem; color:var(--text-main);">Loading...</div>
-                    <div style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Super Admin</div>
+            <div class="brand-header">
+                <div class="brand-lockup large centered">
+                    <i data-lucide="layers" class="brand-icon"></i>
+                    <div class="brand-text">
+                        <span class="txt-fm">FM</span>
+                        <span class="txt-admin">ADMIN</span>
+                    </div>
+                </div>
+                <p>Secure Access Gateway</p>
+            </div>
+            
+            <form id="loginForm" onsubmit="handleLogin(event)" autocomplete="off">
+                <div class="input-group">
+                    <label>Admin ID / Phone</label>
+                    <input type="tel" id="loginId" placeholder="e.g. 9875345863" required autocomplete="off">
+                </div>
+                
+                <div class="input-group password-group">
+                    <label>Secure Pin</label>
+                    <div class="pass-wrapper">
+                        <input type="password" id="loginPin" placeholder="••••" required autocomplete="current-password">
+                        <button type="button" class="toggle-pass-btn" onclick="togglePassword()">
+                            <i data-lucide="eye" id="iconShow"></i>
+                            <i data-lucide="eye-off" id="iconHide" style="display:none"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="remember-row">
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="rememberMe">
+                        <span class="checkmark"></span>
+                        <span class="label-text">Remember Me</span>
+                    </label>
+                </div>
+
+                <button type="submit" id="loginBtn" class="login-btn">
+                    <span>Authenticate</span>
+                    <i data-lucide="arrow-right"></i>
+                </button>
+            </form>
+            <p class="login-footer">System v2.0 | Secured Connection</p>
+        </div>
+    </div>
+
+    <div id="admin-layout" class="admin-layout" style="display: none;">
+        
+        <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-lockup">
+                    <i data-lucide="layers" class="brand-icon"></i>
+                    <div class="brand-text">
+                        <span class="txt-fm">FM</span>
+                        <span class="txt-admin">ADMIN</span>
+                    </div>
+                </div>
+                <button class="mobile-close-btn" onclick="toggleSidebar()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <div class="user-profile">
+                <div class="avatar" id="userAvatar">AD</div>
+                <div class="user-info">
+                    <h4 id="displayUsername">Admin</h4>
+                    <span id="displayRole">Super Admin</span>
                 </div>
             </div>
 
-            <nav>
-                <div onclick="showTab('global')" class="nav-link active"><i class="fa-solid fa-earth-americas"></i> Global</div>
-                <div onclick="showTab('pumps')" class="nav-link"><i class="fa-solid fa-gas-pump"></i> Stations</div>
-                <div onclick="showTab('admins')" class="nav-link"><i class="fa-solid fa-users-gear"></i> Admins</div>
-                <div onclick="showTab('settings')" class="nav-link"><i class="fa-solid fa-sliders"></i> Config</div>
+            <nav class="sidebar-nav">
+                <button class="nav-link active" onclick="switchTab('dashboard')">
+                    <i data-lucide="layout-dashboard"></i> <span>Home</span>
+                </button>
+                <button class="nav-link" onclick="switchTab('stations')">
+                    <i data-lucide="fuel"></i> <span>Stations</span>
+                </button>
+                <button class="nav-link" onclick="switchTab('team')">
+                    <i data-lucide="shield"></i> <span>Security</span>
+                </button>
+                <button class="nav-link" onclick="switchTab('settings')">
+                    <i data-lucide="settings"></i> <span>Settings</span>
+                </button>
             </nav>
-            <button onclick="handleLogout()" class="logout-btn"><i class="fa-solid fa-power-off"></i> Logout</button>
+
+            <div class="sidebar-footer">
+                <div class="dark-mode-toggle" onclick="toggleDarkMode()">
+                    <i data-lucide="moon" id="themeIcon"></i>
+                    <span>Dark Mode</span>
+                </div>
+                <button class="logout-btn" onclick="logout()">
+                    <i data-lucide="log-out"></i>
+                </button>
+            </div>
         </aside>
 
-        <main class="content">
-            <section id="tab-global" class="tab-pane active">
-                <header><h1>Global Operations</h1><p>System-wide controls.</p></header>
-                <div class="card" style="border-left:4px solid var(--danger);">
-                    <h3><i class="fa-solid fa-lock"></i> Emergency Lock</h3>
-                    <p>Lock all stations instantly.</p>
-                    <div style="display:flex; gap:10px; margin-top:10px;">
-                        <input type="text" id="globalDowntimeMsg" class="form-input" placeholder="Reason...">
-                        <button class="btn-danger" onclick="toggleGlobalDowntime()">TOGGLE LOCK</button>
-                    </div>
+        <main class="main-content">
+            
+            <div class="mobile-header">
+                <button class="menu-btn" onclick="toggleSidebar()">
+                    <i data-lucide="menu"></i>
+                </button>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="txt-fm" style="font-weight:900;">FM</span>
+                    <h3>ADMIN</h3>
                 </div>
-            </section>
-
-            <section id="tab-pumps" class="tab-pane" style="display:none;">
-                <header>
-                    <h1>Station Manager</h1>
-                    <div class="header-actions" style="display:flex; gap:10px; margin-top:15px;">
-                        <div class="search-bar" style="flex:1; background:var(--bg-card); border:1px solid var(--border); padding:10px; border-radius:10px; display:flex; gap:10px;">
-                            <i class="fa-solid fa-search" style="color:var(--text-muted);"></i>
-                            <input type="text" id="pumpSearch" placeholder="Search stations..." onkeyup="filterPumps()" style="border:none; width:100%; outline:none; background:transparent; color:var(--text-main);">
-                        </div>
-                        <button class="btn-primary" onclick="openPumpModal()">+ New Station</button>
-                    </div>
-                </header>
-                <div id="pump-list" class="pump-grid"></div>
-            </section>
-
-            <section id="tab-admins" class="tab-pane" style="display:none;">
-                <header><h1>Admin Access</h1><p>Manage Super Admin privileges.</p></header>
-                <div class="grid-2">
-                    <div class="card">
-                        <h3><i class="fa-solid fa-user-plus"></i> Grant Access</h3>
-                        <div class="form-section">
-                            <label>Credentials</label>
-                            <input type="tel" id="newAdminMobile" class="form-input" placeholder="Mobile Number">
-                            <input type="password" id="newAdminPass" class="form-input" placeholder="Password" style="margin-top:5px;">
-                        </div>
-                        <div class="form-section">
-                            <label>Profile</label>
-                            <input type="text" id="newAdminNick" class="form-input" placeholder="Nickname">
-                            <input type="text" id="newAdminDiscord" class="form-input" placeholder="Discord ID (for tagging)" style="margin-top:5px;">
-                        </div>
-                        <button class="btn-primary" onclick="addNewAdmin()" style="width:100%;">Create Admin</button>
-                    </div>
-
-                    <div class="card">
-                        <h3><i class="fa-solid fa-users"></i> Active Super Admins</h3>
-                        <div id="super-admin-list" style="margin-top:15px; max-height: 300px; overflow-y: auto;">
-                            <p style="color:var(--text-muted);">Loading...</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="tab-settings" class="tab-pane" style="display:none;">
-                <header><h1>Configuration</h1></header>
-                <div class="card">
-                    <h3>Discord Integration</h3>
-                    <label>Webhook URL</label>
-                    <input type="text" id="confWebhook" class="form-input" placeholder="Webhook URL">
-                    <button class="btn-primary" onclick="saveGlobalConfig()" style="margin-top:15px;">Save</button>
-                </div>
-                <div class="card" style="margin-top:20px; border-color:var(--danger);">
-                    <h3 style="color:var(--danger);">Danger Zone</h3>
-                    <button class="btn-danger" onclick="nukeDatabase()">FACTORY RESET</button>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <div id="modal-pump" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modal-title">Configure Station</h2>
-                <button class="btn-text" onclick="closeModal('modal-pump')"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="modal-body">
-                <input type="hidden" id="editPumpId">
-                <div class="form-section">
-                    <label>Station Info</label>
-                    <div class="grid-2" style="display:grid; grid-template-columns:2fr 1fr; gap:10px;">
-                        <input type="text" id="inpName" class="form-input" placeholder="Station Name">
-                        <select id="inpTheme" class="form-input">
+
+            <section id="view-dashboard" class="view-section active">
+                <header class="view-header">
+                    <h1>System Overview</h1>
+                    <div class="date-badge" id="currentDate">Loading...</div>
+                </header>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="icon-box blue"><i data-lucide="fuel"></i></div>
+                        <div class="stat-info">
+                            <span class="label">Active Stations</span>
+                            <h2 id="stat-stations">0</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon-box orange"><i data-lucide="users"></i></div>
+                        <div class="stat-info">
+                            <span class="label">Team Members</span>
+                            <h2 id="stat-admins">0</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon-box green"><i data-lucide="activity"></i></div>
+                        <div class="stat-info">
+                            <span class="label">System Status</span>
+                            <h2 class="status-ok">Online</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="content-card">
+                    <div class="card-head">
+                        <h3>📢 Global Broadcast</h3>
+                        <div class="toggle-switch">
+                            <label class="switch">
+                                <input type="checkbox" id="downtimeToggle" onchange="toggleDowntimeMode()">
+                                <span class="slider round"></span>
+                            </label>
+                            <span>Downtime Mode</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <textarea id="globalNotice" placeholder="Type a message to broadcast to all clients..." autocomplete="off"></textarea>
+                        <div class="action-row">
+                            <select id="noticeType">
+                                <option value="info">ℹ️ Information</option>
+                                <option value="warning">⚠️ Warning</option>
+                                <option value="critical">🚨 Critical</option>
+                            </select>
+                            <button class="primary-btn" onclick="saveSettings()">
+                                <i data-lucide="send"></i> Push Notification
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-stations" class="view-section">
+                <header class="view-header">
+                    <h1>Station Management</h1>
+                    <button class="primary-btn" onclick="openStationModal()">
+                        <i data-lucide="plus"></i> Add Station
+                    </button>
+                </header>
+
+                <div class="toolbar">
+                    <div class="search-bar">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="stationSearch" placeholder="Search by name, ID..." onkeyup="renderStations()" autocomplete="off">
+                    </div>
+                    <div class="filter-group">
+                        <select id="filterTheme" class="filter-select" onchange="renderStations()">
+                            <option value="all">All Brands</option>
                             <option value="bpcl">BPCL</option>
                             <option value="iocl">IOCL</option>
                             <option value="hpcl">HPCL</option>
-                            <option value="jio">Jio</option>
+                            <option value="jio">Jio-bp</option>
                         </select>
-                    </div>
-                    <input type="text" id="inpNote" class="form-input" placeholder="Notes..." style="margin-top:10px;">
-                </div>
-                
-                <div class="form-section" style="background:rgba(59,130,246,0.05); padding:15px; border-radius:10px; border:1px dashed var(--accent);">
-                    <label style="color:var(--accent);">Admin Access (Mobile Login)</label>
-                    <input type="tel" id="inpAdminMobile" class="form-input" placeholder="e.g. 9876543210" maxlength="10">
-                    
-                    <div id="pass-container" style="margin-top:10px;">
-                        <input type="text" id="inpAdminPass" class="form-input" placeholder="Set Password">
-                    </div>
-                    <div id="reset-password-box" style="display:none; margin-top:10px;">
-                        <small style="color:var(--text-muted)">User exists. Password reset requires admin SDK or manual recreation.</small>
+                        <select id="sortDate" class="filter-select" onchange="renderStations()">
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                        </select>
                     </div>
                 </div>
 
-                <div class="form-section">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <label>Tanks</label>
-                        <button class="btn-text" onclick="addTankRow()" style="padding:0; font-size:0.8rem;">+ Add Tank</button>
+                <div id="stations-grid" class="cards-grid">
                     </div>
-                    <div id="tank-container"></div>
+            </section>
+
+            <section id="view-team" class="view-section">
+                <header class="view-header">
+                    <h1>Security & Team Access</h1>
+                    <button class="primary-btn" onclick="openModal('adminModal')">
+                        <i data-lucide="user-plus"></i> Add User
+                    </button>
+                </header>
+
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Phone / ID</th>
+                                <th>Role</th>
+                                <th>Discord</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-table-body">
+                            </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="view-settings" class="view-section">
+                <header class="view-header">
+                    <h1>Configuration</h1>
+                </header>
+
+                <div class="content-card">
+                    <div class="card-head">
+                        <h3>🤖 Discord Webhook Integration</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="helper-text">Events like 'New Station' or 'Critical Notice' will be logged here.</p>
+                        <div class="input-group">
+                            <label>Webhook URL</label>
+                            <input type="text" id="webhookUrl" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
+                        </div>
+                        <button class="secondary-btn" onclick="saveSettings()">Save Configuration</button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <div id="confirmModal" class="modal-overlay" style="z-index: 6000;">
+        <div class="modal-card small animate__animated animate__zoomIn">
+            <div class="modal-head">
+                <h3>Confirmation Required</h3>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage" style="color:var(--text-main); font-size:1rem;">Are you sure?</p>
+            </div>
+            <div class="modal-foot">
+                <button class="secondary-btn" onclick="closeConfirm(false)">Cancel</button>
+                <button id="btnConfirmAction" class="primary-btn" style="background:var(--danger)">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="stationModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3 id="stationModalTitle">Add New Station</h3>
+                <button class="close-btn" onclick="closeModal('stationModal')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body scrollable">
+                <input type="hidden" id="stId">
+
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Pump Name</label>
+                        <input type="text" id="stName" placeholder="e.g. Royal Fuel Station" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>Brand Theme</label>
+                        <select id="stTheme">
+                            <option value="bpcl">Bharat Petroleum (BPCL)</option>
+                            <option value="iocl">Indian Oil (IOCL)</option>
+                            <option value="hpcl">Hindustan Petroleum (HPCL)</option>
+                            <option value="jio">Jio-bp (JIO)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Location / Notes</label>
+                    <input type="text" id="stNotes" placeholder="City, Highway number, etc." autocomplete="off">
+                </div>
+
+                <div class="divider"><span>Manager Access</span></div>
+
+                <div class="form-row">
+                    <div class="input-group">
+                        <label>Username</label>
+                        <input type="text" id="stUser" placeholder="Client Admin User" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="text" id="stPass" placeholder="Default Password" autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="divider"><span>Tank Configuration</span></div>
+                
+                <div id="tank-list" class="tank-list">
+                    </div>
+                <button class="dashed-btn" onclick="addTankRow()">+ Add Tank</button>
+
+            </div>
+            <div class="modal-foot">
+                <button class="secondary-btn" onclick="closeModal('stationModal')">Cancel</button>
+                <button class="primary-btn" id="btnSaveStation" onclick="saveStation()">Create Station</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminModal" class="modal-overlay">
+        <div class="modal-card small">
+            <div class="modal-head">
+                <h3>Add Team Member</h3>
+                <button class="close-btn" onclick="closeModal('adminModal')"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Full Name</label>
+                    <input type="text" id="newAdminName" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label>Phone Number (Login ID)</label>
+                    <input type="tel" id="newAdminPhone" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label>Access Role</label>
+                    <select id="newAdminRole">
+                        <option value="Moderator">Moderator (All Access except Admins)</option>
+                        <option value="Staff">Staff (Edit Stations Only)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Login PIN / Password</label>
+                    <input type="text" id="newAdminPin" placeholder="4-6 Digit PIN" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label>Discord User ID (Optional)</label>
+                    <input type="text" id="newAdminDiscord" placeholder="user#1234" autocomplete="off">
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn-text" onclick="closeModal('modal-pump')">Cancel</button>
-                <button class="btn-primary" onclick="savePump()">Save Changes</button>
+            <div class="modal-foot">
+                <button class="secondary-btn" onclick="closeModal('adminModal')">Cancel</button>
+                <button class="primary-btn" onclick="addSuperAdmin()">Grant Access</button>
             </div>
         </div>
     </div>
 
     <script type="module" src="admin.js"></script>
+    <script>
+        if(window.lucide) lucide.createIcons();
+    </script>
 </body>
 </html>
