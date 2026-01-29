@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'sb_publishable_mP-3LuhOE7uXLOV5t4IrBg_WWvUUmmb';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- CONSTANTS ---
-const BOSS_PHONE = "9875345863";
+const BOSS_PHONE = "9875345863"; // Kept for reference in admin table logic if needed, but not for backdoor
 const ROLES = {
     OWNER: 'Owner',
     MODERATOR: 'Moderator',
@@ -141,15 +141,7 @@ window.handleLogin = async function(e) {
     btn.innerHTML = '<span>Verifying...</span>';
     btn.disabled = true;
 
-    // Boss Backdoor
-    if (id === BOSS_PHONE && pin === "admin123") {
-        const bossUser = { name: "THE BOSS", phone: BOSS_PHONE, role: ROLES.OWNER, pin: "admin123" };
-        handleSuccess(bossUser, rememberMe, id, pin);
-        btn.innerHTML = originalBtnText;
-        btn.disabled = false;
-        return;
-    }
-
+    // SECURE LOGIN: Check against Supabase 'admins' table
     try {
         const { data, error } = await supabase
             .from('admins')
@@ -159,6 +151,7 @@ window.handleLogin = async function(e) {
             .single();
 
         if (error || !data) {
+            // This handles incorrect PINs or IDs safely without revealing details
             showAlert("Access Denied: Invalid Credentials.", "error");
         } else {
             handleSuccess(data, rememberMe, id, pin);
