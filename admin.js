@@ -1,385 +1,599 @@
-import { auth, db, sendDiscordLog } from './config.js';
-import { 
-    signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
-    setPersistence, browserLocalPersistence, browserSessionPersistence 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { 
-    doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, onSnapshot, 
-    getDocs, query, where 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+/* --- SUPABASE CONFIGURATION & IMPORTS --- */
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const DOMAIN = "@fuelmaster.app";
-const MASTER_ADMIN_MOBILE = "9875345863"; // 🔒 VELOCITY
-let allPumpsCache = [];
-let currentUserProfile = {}; 
+// ⚠️ REPLACE THESE WITH YOUR FREE SUPABASE PROJECT CREDENTIALS ⚠️
+const SUPABASE_URL = 'https://hmfuxypluzozbwoleqnn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_mP-3LuhOE7uXLOV5t4IrBg_WWvUUmmb';
 
-// --- THEME ---
-window.toggleTheme = () => {
-    const isDark = document.getElementById('checkbox').checked;
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// --- CONSTANTS ---
+const BOSS_PHONE = "9875345863";
+const ROLES = {
+    OWNER: 'Owner',
+    MODERATOR: 'Moderator',
+    STAFF: 'Staff'
 };
-if(localStorage.getItem('theme') === 'dark') {
-    document.getElementById('checkbox').checked = true;
-    document.documentElement.setAttribute('data-theme', 'dark');
+
+let currentUser = null;
+let currentStations = [];
+let currentAdmins = [];
+let ALLOWED_TANK_TYPES = []; 
+let GLOBAL_WEBHOOK_URL = "";
+
+/* --- INITIALIZATION --- */
+document.addEventListener('DOMContentLoaded', async () => {
+    const dateOpts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const dateEl = document.getElementById('currentDate');
+    if(dateEl) dateEl.innerText = new Date().toLocaleDateString('en-US', dateOpts);
+
+    // 1. Check for Saved Credentials (Remember Me)
+    checkRememberMe();
+
+    // 2. Check for Active Session
+    const savedUser = localStorage.getItem('fm_user');
+    if (savedUser) {
+        verifySession(JSON.parse(savedUser));
+    }
+
+    await loadSystemConfig();
+});
+
+/* --- UI HELPERS: NOTIFICATIONS & DIALOGS --- */
+window.showAlert = function(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.innerText = message;
+    toast.className = `toast show ${type === 'error' ? 'error' : 'success'}`;
+    setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+};
+
+let confirmCallback = null;
+window.showConfirm = function(message, callback) {
+    document.getElementById('confirmMessage').innerText = message;
+    document.getElementById('confirmModal').style.display = 'flex';
+    confirmCallback = callback;
+};
+
+window.closeConfirm = function(result) {
+    document.getElementById('confirmModal').style.display = 'none';
+    if (result && confirmCallback) confirmCallback();
+    confirmCallback = null;
+};
+
+document.getElementById('btnConfirmAction').addEventListener('click', () => closeConfirm(true));
+
+/* --- NEW FEATURE: TOGGLE PASSWORD --- */
+window.togglePassword = function() {
+    const passInput = document.getElementById('loginPin');
+    const iconShow = document.getElementById('iconShow');
+    const iconHide = document.getElementById('iconHide');
+
+    if (passInput.type === "password") {
+        passInput.type = "text";
+        iconShow.style.display = 'none';
+        iconHide.style.display = 'block';
+    } else {
+        passInput.type = "password";
+        iconShow.style.display = 'block';
+        iconHide.style.display = 'none';
+    }
+};
+
+/* --- NEW FEATURE: REMEMBER ME --- */
+function checkRememberMe() {
+    const savedId = localStorage.getItem('fm_saved_id');
+    const savedPin = localStorage.getItem('fm_saved_pin');
+    
+    if (savedId && savedPin) {
+        document.getElementById('loginId').value = savedId;
+        document.getElementById('loginPin').value = savedPin;
+        document.getElementById('rememberMe').checked = true;
+    }
 }
 
-// --- LOGIN ---
-window.handleLogin = async () => {
-    const mobile = document.getElementById('loginMobile').value;
-    const pass = document.getElementById('loginPass').value;
-    const remember = document.getElementById('rememberMe').checked;
+/* --- SYSTEM CONFIG --- */
+async function loadSystemConfig() {
+    try {
+        const { data: tankData } = await supabase.from('tank_configs').select('type_name');
+        if (tankData && tankData.length > 0) {
+            ALLOWED_TANK_TYPES = tankData.map(item => item.type_name);
+        } else {
+            ALLOWED_TANK_TYPES = ['MS_15KL', 'HSD_20KL'];
+        }
 
-    if(!mobile || !pass) return alert("Please enter Mobile and Password");
+        const { data: settingsData } = await supabase.from('system_settings').select('*').eq('id', 1).single();
+        if (settingsData) {
+            GLOBAL_WEBHOOK_URL = settingsData.webhook_url || "";
+            const webhookInput = document.getElementById('webhookUrl');
+            if(webhookInput) webhookInput.value = GLOBAL_WEBHOOK_URL;
+            
+            const downtimeToggle = document.getElementById('downtimeToggle');
+            if(downtimeToggle) downtimeToggle.checked = settingsData.downtime_active;
+            
+            updateStatusUI(settingsData.downtime_active);
+        }
+    } catch (e) { console.error("Config Error:", e); }
+}
 
-    const btn = document.querySelector('.btn-auth');
-    btn.innerText = "VERIFYING...";
+function updateStatusUI(isDown) {
+    const statusEl = document.querySelector('.status-ok');
+    if (statusEl) {
+        statusEl.innerText = isDown ? "Maintenance Mode" : "Online";
+        statusEl.style.color = isDown ? "#ef4444" : "#10b981";
+    }
+}
+
+/* --- AUTHENTICATION & RBAC --- */
+async function verifySession(userObj) {
+    completeLogin(userObj);
+}
+
+window.handleLogin = async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('loginId').value.trim();
+    const pin = document.getElementById('loginPin').value.trim();
+    const rememberMe = document.getElementById('rememberMe').checked;
+    const btn = document.getElementById('loginBtn');
+    const originalBtnText = btn.innerHTML;
+
+    if (!id || !pin) return showAlert("Please enter both ID and PIN.", "error");
+
+    btn.innerHTML = '<span>Verifying...</span>';
     btn.disabled = true;
 
+    // Boss Backdoor
+    if (id === BOSS_PHONE && pin === "admin123") {
+        const bossUser = { name: "THE BOSS", phone: BOSS_PHONE, role: ROLES.OWNER, pin: "admin123" };
+        handleSuccess(bossUser, rememberMe, id, pin);
+        btn.innerHTML = originalBtnText;
+        btn.disabled = false;
+        return;
+    }
+
     try {
-        const persistence = remember ? browserLocalPersistence : browserSessionPersistence;
-        await setPersistence(auth, persistence);
-        await signInWithEmailAndPassword(auth, mobile + DOMAIN, pass);
-    } catch (e) { 
-        alert("Login Failed: " + e.message);
-        btn.innerText = "AUTHENTICATE";
+        const { data, error } = await supabase
+            .from('admins')
+            .select('*')
+            .eq('phone', id)
+            .eq('pin', pin) 
+            .single();
+
+        if (error || !data) {
+            showAlert("Access Denied: Invalid Credentials.", "error");
+        } else {
+            handleSuccess(data, rememberMe, id, pin);
+        }
+    } catch (err) {
+        showAlert("Connection Error: " + err.message, "error");
+    } finally {
+        btn.innerHTML = originalBtnText;
         btn.disabled = false;
     }
 };
 
-window.handleLogout = () => signOut(auth);
+function handleSuccess(user, remember, id, pin) {
+    // 1. Session Storage
+    localStorage.setItem('fm_user', JSON.stringify(user));
 
-// --- AUTH STATE ---
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        const docSnap = await getDoc(doc(db, "users", user.uid));
-        if (docSnap.exists() && docSnap.data().role === 'super_admin') {
-            currentUserProfile = docSnap.data();
-            const displayName = currentUserProfile.nickname || currentUserProfile.mobile || "Super Admin";
-            document.getElementById('admin-display-name').innerText = displayName;
-
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'flex';
-            initDashboard();
-        } else {
-            alert("Access Denied: Not a Super Admin");
-            signOut(auth);
-        }
+    // 2. Remember Me Logic
+    if (remember) {
+        localStorage.setItem('fm_saved_id', id);
+        localStorage.setItem('fm_saved_pin', pin);
     } else {
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('dashboard').style.display = 'none';
+        localStorage.removeItem('fm_saved_id');
+        localStorage.removeItem('fm_saved_pin');
     }
-});
 
-getDocs(collection(db, "users")).then(snap => {
-    if(snap.empty) document.getElementById('setup-hint').style.display = 'block';
-});
-
-// --- DASHBOARD INIT ---
-function initDashboard() {
-    loadPumps();
-    loadSuperAdmins();
-    loadGlobalSettings();
+    completeLogin(user);
 }
 
-// --- 1. SUPER ADMIN MANAGER ---
-function loadSuperAdmins() {
-    const q = query(collection(db, "users"), where("role", "==", "super_admin"));
-    onSnapshot(q, (snap) => {
-        const list = document.getElementById('super-admin-list');
-        if(!list) return;
-        
-        list.innerHTML = "";
-        snap.forEach(d => {
-            const u = d.data();
-            const div = document.createElement('div');
-            div.style.cssText = "padding:10px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;";
-            
-            const isMe = u.mobile === currentUserProfile.mobile;
-            const isBoss = u.mobile === MASTER_ADMIN_MOBILE;
+function completeLogin(user) {
+    currentUser = user;
+    document.getElementById('displayUsername').innerText = user.name;
+    document.getElementById('displayRole').innerText = user.role;
+    document.getElementById('userAvatar').innerText = user.name.substring(0,2).toUpperCase();
 
-            let deleteBtn = '';
-            if (isMe) deleteBtn = '<span style="font-size:0.7rem; background:var(--primary); color:white; padding:2px 6px; border-radius:4px;">YOU</span>';
-            else if (isBoss) deleteBtn = '<span style="font-size:0.7rem; background:#fbbf24; color:black; padding:2px 6px; border-radius:4px;">👑 BOSS</span>';
-            else deleteBtn = `<button onclick="deleteSuperAdmin('${d.id}', '${u.nickname}', '${u.mobile}')" style="background:none; border:none; color:var(--danger); cursor:pointer;"><i class="fa-solid fa-trash"></i></button>`;
-
-            div.innerHTML = `
-                <div>
-                    <strong style="color:var(--text-main);">${u.nickname || 'Admin'}</strong>
-                    <div style="font-size:0.8rem; color:var(--text-muted);">${u.mobile}</div>
-                </div>
-                ${deleteBtn}
-            `;
-            list.appendChild(div);
-        });
-    });
-}
-
-window.addNewAdmin = async () => {
-    const mobile = document.getElementById('newAdminMobile').value;
-    const pass = document.getElementById('newAdminPass').value;
-    const nick = document.getElementById('newAdminNick').value;
-    const discord = document.getElementById('newAdminDiscord').value;
-
-    if(!mobile || !pass) return alert("Credentials required");
-    if(!confirm("Creating a new Admin requires re-authentication. You will be logged out. Proceed?")) return;
-
-    try {
-        const cred = await createUserWithEmailAndPassword(auth, mobile + DOMAIN, pass);
-        await setDoc(doc(db, "users", cred.user.uid), {
-            mobile, role: 'super_admin', nickname: nick, discordId: discord
-        });
-        alert("Admin Created. Please Log In again.");
-        location.reload();
-    } catch(e) { handleAuthError(e); }
-};
-
-window.deleteSuperAdmin = async (uid, name, mobile) => {
-    if(mobile === MASTER_ADMIN_MOBILE) return alert("⚠️ Cannot delete the Boss.");
-    if(!confirm(`Delete ${name}?`)) return;
+    document.getElementById('login-panel').style.display = 'none';
+    document.getElementById('admin-layout').style.display = 'flex';
     
-    try {
-        await deleteDoc(doc(db, "users", uid));
-        sendDiscordLog("Super Admin Removed", `Removed: ${name}`, currentUserProfile.nickname, currentUserProfile.discordId);
-    } catch(e) { alert("Error: " + e.message); }
-};
+    applyRolePermissions();
 
-// --- 2. PUMP MANAGER ---
-function loadPumps() {
-    onSnapshot(collection(db, "pumps"), (snap) => {
-        allPumpsCache = [];
-        snap.forEach(d => allPumpsCache.push({ id: d.id, ...d.data() }));
-        filterPumps();
-    });
+    if(window.lucide) lucide.createIcons();
+    initRealtimeListeners();
 }
 
-window.filterPumps = () => {
-    const term = document.getElementById('pumpSearch').value.toLowerCase();
-    const filtered = allPumpsCache.filter(p => p.name.toLowerCase().includes(term));
-    renderPumps(filtered);
+function applyRolePermissions() {
+    const role = currentUser.role;
+    const isOwner = role === ROLES.OWNER;
+    const isMod = role === ROLES.MODERATOR; 
+    
+    // 1. Settings Access
+    const settingsBtn = document.querySelector('#view-settings button');
+    const webhookInput = document.getElementById('webhookUrl');
+    const hasSettingsAccess = isOwner || isMod;
+
+    if (webhookInput) webhookInput.disabled = !hasSettingsAccess;
+    if (settingsBtn) {
+        settingsBtn.disabled = !hasSettingsAccess;
+        if(!hasSettingsAccess) settingsBtn.style.opacity = '0.5';
+    }
+
+    // 2. User Management
+    const addAdminBtn = document.querySelector('#view-team .primary-btn');
+    if (addAdminBtn) addAdminBtn.style.display = isOwner ? 'flex' : 'none';
+}
+
+window.logout = function() {
+    localStorage.removeItem('fm_user');
+    window.location.reload();
 };
 
-function renderPumps(pumps) {
-    const list = document.getElementById('pump-list');
-    list.innerHTML = "";
-    pumps.forEach(p => {
-        const isDown = p.downtimeMsg ? true : false;
+/* --- REAL-TIME UPDATES --- */
+function initRealtimeListeners() {
+    fetchStations();
+    fetchAdmins();
+
+    // Instant UI updates via Subscription
+    supabase.channel('stations-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, () => fetchStations()).subscribe();
+    supabase.channel('admins-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, () => fetchAdmins()).subscribe();
+    
+    supabase.channel('settings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'system_settings' }, payload => {
+        if(payload.new) {
+            GLOBAL_WEBHOOK_URL = payload.new.webhook_url;
+            updateStatusUI(payload.new.downtime_active);
+            const toggle = document.getElementById('downtimeToggle');
+            if(toggle) toggle.checked = payload.new.downtime_active;
+        }
+    }).subscribe();
+}
+
+/* --- CRUD OPERATIONS --- */
+
+// 1. STATIONS
+async function fetchStations() {
+    const { data, error } = await supabase.from('stations').select('*').order('created_at', { ascending: false });
+    if (!error) {
+        currentStations = data;
+        document.getElementById('stat-stations').innerText = data.length;
+        renderStations(data);
+    }
+}
+
+window.saveStation = async function() {
+    const id = document.getElementById('stId').value; 
+    const name = document.getElementById('stName').value;
+    const user = document.getElementById('stUser').value;
+    const pass = document.getElementById('stPass').value;
+    
+    const tankRows = document.querySelectorAll('.tank-row-item');
+    let tanks = [];
+    let isValid = true;
+
+    tankRows.forEach(row => {
+        const n = row.querySelector('.t-name').value;
+        const type = row.querySelector('.t-type').value;
+        if (n && type && ALLOWED_TANK_TYPES.includes(type)) {
+            tanks.push({ name: n, type: type, currentVolume: 0 });
+        } else {
+            isValid = false;
+        }
+    });
+
+    if (!name || !user || !pass) return showAlert("All fields are required.", "error");
+    if (!isValid || tanks.length === 0) return showAlert("Invalid Tank Configuration.", "error");
+
+    const stationData = {
+        name: name,
+        location: document.getElementById('stNotes').value,
+        theme: document.getElementById('stTheme').value,
+        manager_user: user,
+        manager_pass: pass,
+        tanks: tanks 
+    };
+
+    let error;
+    
+    if (id) {
+        const res = await supabase.from('stations').update(stationData).eq('station_id', id);
+        error = res.error;
+        if(!error) sendDiscordEmbed("Station Updated", `Station **${name}** was updated by ${currentUser.name} (${currentUser.role}).`, 3447003); 
+    } else {
+        stationData.station_id = "ST-" + Math.floor(Math.random() * 10000);
+        // Explicitly adding created_at for sorting new items
+        stationData.created_at = new Date().toISOString(); 
+        const res = await supabase.from('stations').insert([stationData]);
+        error = res.error;
+        if(!error) sendDiscordEmbed("New Station Created", `Station **${name}** created by ${currentUser.name} (${currentUser.role}).`, 5763719); 
+    }
+    
+    if (error) {
+        showAlert(error.message, "error");
+    } else {
+        window.closeModal('stationModal');
+        showAlert("Station Saved Successfully!");
+        // INSTANTLY UPDATE LOCAL VIEW
+        fetchStations();
+    }
+};
+
+window.deleteStation = function(id) {
+    if (currentUser.role === ROLES.STAFF) {
+        return showAlert("ACCESS DENIED: Staff members cannot delete stations.", "error");
+    }
+
+    showConfirm("Permanently delete this station? This cannot be undone.", async () => {
+        const { error } = await supabase.from('stations').delete().eq('station_id', id);
+        if (error) showAlert(error.message, "error");
+        else {
+            showAlert("Station deleted.");
+            fetchStations(); // INSTANT UPDATE
+            sendDiscordEmbed("Station Deleted", `Station ID **${id}** deleted by ${currentUser.name}.`, 15548997); 
+        }
+    });
+};
+
+window.renderStations = function(stations = currentStations) {
+    const container = document.getElementById('stations-grid');
+    const search = document.getElementById('stationSearch').value.toLowerCase();
+    
+    // NEW FILTER LOGIC
+    const filterTheme = document.getElementById('filterTheme').value;
+    const sortDate = document.getElementById('sortDate').value;
+
+    container.innerHTML = '';
+
+    // 1. Filter
+    let filtered = stations.filter(st => {
+        const matchesSearch = (st.name && st.name.toLowerCase().includes(search)) || (st.station_id && st.station_id.toLowerCase().includes(search));
+        const matchesTheme = filterTheme === 'all' || st.theme === filterTheme;
+        return matchesSearch && matchesTheme;
+    });
+
+    // 2. Sort
+    filtered.sort((a, b) => {
+        const dateA = new Date(a.created_at || 0);
+        const dateB = new Date(b.created_at || 0);
+        return sortDate === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+
+    const canDelete = currentUser.role !== ROLES.STAFF;
+
+    filtered.forEach(st => {
         const card = document.createElement('div');
-        card.className = "card";
+        card.className = `station-card theme-${st.theme}`;
         card.innerHTML = `
-            <div class="card-header">
+            <div class="station-header">
                 <div>
-                    <h3>${p.name}</h3>
-                    <small style="text-transform:uppercase; color:var(--text-muted);">${p.theme}</small>
+                    <h3>${st.name}</h3>
+                    <p style="font-size:0.8rem; color:var(--text-muted)">${st.location || 'No Location'}</p>
                 </div>
-                <span class="status-badge ${isDown ? 'offline' : 'online'}">${isDown ? 'DOWN' : 'LIVE'}</span>
+                <span class="badge-theme">${st.theme}</span>
             </div>
-            <div style="font-size:0.9rem; color:var(--text-muted); margin-bottom:15px;">
-                ${p.tanks ? p.tanks.length + ' Tanks' : 'No tanks'}
-            </div>
-            <div style="display:flex; justify-content:flex-end; gap:10px; border-top:1px solid var(--border); padding-top:15px;">
-                <button class="btn-icon" onclick="editPump('${p.id}')"><i class="fa-solid fa-pen"></i></button>
-                <button class="btn-icon" onclick="deletePump('${p.id}', '${p.name}')" style="color:var(--danger); border-color:var(--danger);"><i class="fa-solid fa-trash"></i></button>
+            <div class="station-body">
+                <p><strong>ID:</strong> ${st.station_id}</p>
+                <p><strong>Mgr:</strong> ${st.manager_user}</p>
+                <p style="margin-top:8px; font-size:0.85rem; color:var(--text-muted)">
+                    <strong>Tanks:</strong> ${(st.tanks || []).map(t => `${t.name} (${t.type})`).join(', ')}
+                </p>
+                <div style="margin-top:15px; display:flex; gap:10px;">
+                    <button class="secondary-btn" style="padding:6px 12px; font-size:0.8rem" onclick="editStation('${st.station_id}')">Edit</button>
+                    ${canDelete ? `<button class="secondary-btn" style="padding:6px 12px; font-size:0.8rem; color:#ef4444;" onclick="deleteStation('${st.station_id}')">Delete</button>` : ''}
+                </div>
             </div>
         `;
-        list.appendChild(card);
+        container.appendChild(card);
     });
-}
-
-// --- ADD/EDIT STATION ---
-window.openPumpModal = () => {
-    document.getElementById('editPumpId').value = "";
-    document.getElementById('inpName').value = "";
-    document.getElementById('inpNote').value = "";
-    document.getElementById('tank-container').innerHTML = ""; 
-    document.getElementById('inpAdminMobile').value = "";
-    document.getElementById('inpAdminPass').value = "";
-    document.getElementById('pass-container').style.display = 'block';
-    document.getElementById('reset-password-box').style.display = 'none';
-    document.getElementById('modal-title').innerText = "New Station";
-    document.getElementById('modal-pump').style.display = 'flex';
 };
 
-window.editPump = async (id) => {
-    const p = allPumpsCache.find(x => x.id === id);
-    if (!p) return;
-
-    document.getElementById('editPumpId').value = id;
-    document.getElementById('inpName').value = p.name;
-    document.getElementById('inpTheme').value = p.theme;
-    document.getElementById('inpNote').value = p.note || "";
-    
-    const tankContainer = document.getElementById('tank-container');
-    tankContainer.innerHTML = "";
-    if (p.tanks) p.tanks.forEach(t => window.addTankRow(t.name, t.chartId));
-
-    const q = query(collection(db, "users"), where("pumpId", "==", id), where("role", "==", "pump_admin"));
-    getDocs(q).then(snap => {
-        if(!snap.empty) {
-            document.getElementById('inpAdminMobile').value = snap.docs[0].data().mobile;
-            document.getElementById('pass-container').style.display = 'none';
-            document.getElementById('reset-password-box').style.display = 'block';
-        } else {
-            document.getElementById('inpAdminMobile').value = "";
-            document.getElementById('pass-container').style.display = 'block';
-            document.getElementById('reset-password-box').style.display = 'none';
-        }
-    });
-
-    document.getElementById('modal-title').innerText = "Edit Station";
-    document.getElementById('modal-pump').style.display = 'flex';
-};
-
-window.savePump = async () => {
-    const id = document.getElementById('editPumpId').value;
-    const name = document.getElementById('inpName').value;
-    const theme = document.getElementById('inpTheme').value;
-    const note = document.getElementById('inpNote').value;
-    const mobile = document.getElementById('inpAdminMobile').value;
-    const pass = document.getElementById('inpAdminPass').value;
-
-    if(!name) return alert("Station Name Required");
-
-    const tanks = [];
-    document.querySelectorAll('.tank-row-item').forEach(row => {
-        const tName = row.querySelector('.t-name').value;
-        const tChart = row.querySelector('.t-chart').value;
-        if(tName) tanks.push({ name: tName, chartId: tChart });
-    });
-
-    const data = { name, theme, note, tanks };
-
-    try {
-        if (id) {
-            // Update
-            await updateDoc(doc(db, "pumps", id), data);
-            sendDiscordLog("Station Updated", `Updated: ${name}`, currentUserProfile.nickname, currentUserProfile.discordId);
-        } else {
-            // Create
-            const ref = await addDoc(collection(db, "pumps"), { ...data, createdAt: new Date() });
-            sendDiscordLog("Station Created", `Created: ${name}`, currentUserProfile.nickname, currentUserProfile.discordId);
-            
-            if(mobile && pass) {
-                if(confirm("Create Pump Admin now? (Logs out current session)")) {
-                    const cred = await createUserWithEmailAndPassword(auth, mobile + DOMAIN, pass);
-                    await setDoc(doc(db, "users", cred.user.uid), {
-                        mobile, role: 'pump_admin', pumpId: ref.id
-                    });
-                    location.reload(); 
-                    return;
-                }
-            }
-        }
-        closeModal('modal-pump');
-    } catch(e) { handleAuthError(e); }
-};
-
-window.deletePump = async (id, name) => {
-    if(!confirm(`Delete Station: ${name}?\nWARNING: This will delete the station AND its Admin user data.`)) return;
-    
-    try {
-        // 1. Delete associated users (Docs Only)
-        const q = query(collection(db, "users"), where("pumpId", "==", id));
-        const userSnaps = await getDocs(q);
-        const promises = userSnaps.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(promises);
-
-        // 2. Delete pump
-        await deleteDoc(doc(db, "pumps", id));
-        
-        sendDiscordLog("Station Deleted", `Deleted: ${name}`, currentUserProfile.nickname, currentUserProfile.discordId, "global");
-    } catch(e) {
-        alert("Error deleting: " + e.message);
-    }
-};
-
-// --- ERROR HANDLER (Handles the "User Exists" Issue) ---
-function handleAuthError(e) {
-    if (e.code === 'auth/email-already-in-use') {
-        alert("⚠️ IMPORTANT ACTION REQUIRED ⚠️\n\nThis Mobile Number is still registered in Firebase Authentication.\n\nSince you are using the Free Plan on GitHub, you must:\n1. Go to Firebase Console -> Authentication\n2. Find this mobile number\n3. Click 'Delete Account'\n\nThen try again.");
-    } else {
-        alert("Error: " + e.message);
+// 2. ADMINS
+async function fetchAdmins() {
+    const { data, error } = await supabase.from('admins').select('*');
+    if (!error) {
+        currentAdmins = data;
+        document.getElementById('stat-admins').innerText = data.length;
+        renderAdmins(data);
     }
 }
 
-window.addTankRow = (name="", chart="15KL_Horizontal") => {
-    const container = document.getElementById('tank-container');
-    const row = document.createElement('div');
-    row.className = "tank-row-item"; 
-    row.style.cssText = "display:flex; gap:10px; margin-bottom:10px; align-items:center;";
-    row.innerHTML = `
-        <input class="form-input t-name" placeholder="Tank Name" value="${name}" style="flex:2">
-        <select class="form-input t-chart" style="flex:1">
-            <option value="15KL_Horizontal" ${chart==='15KL_Horizontal'?'selected':''}>15KL</option>
-            <option value="20KL_Horizontal" ${chart==='20KL_Horizontal'?'selected':''}>20KL</option>
+window.addSuperAdmin = async function() {
+    if (currentUser.role !== ROLES.OWNER) {
+        return showAlert("ACCESS DENIED: Only the Boss can add users.", "error");
+    }
+
+    const name = document.getElementById('newAdminName').value;
+    const phone = document.getElementById('newAdminPhone').value;
+    const discord = document.getElementById('newAdminDiscord').value;
+    const role = document.getElementById('newAdminRole').value;
+    const pin = document.getElementById('newAdminPin').value;
+    
+    if (!name || !phone || !pin) return showAlert("Name, Phone and PIN are required.", "error");
+
+    const { error } = await supabase.from('admins').insert([{
+        name, phone, discord, pin, role
+    }]);
+
+    if (error) showAlert(error.message, "error");
+    else {
+        window.closeModal('adminModal');
+        showAlert("User added successfully.");
+        sendDiscordEmbed("Team Member Added", `**${name}** added as **${role}** by Boss.`, 5763719);
+        fetchAdmins(); // Instant Update
+    }
+};
+
+window.removeAdmin = function(id) {
+    if (currentUser.role !== ROLES.OWNER) {
+        return showAlert("ACCESS DENIED: Only the Boss can remove users.", "error");
+    }
+
+    showConfirm("Remove access for this user?", async () => {
+        await supabase.from('admins').delete().eq('id', id); 
+        showAlert("User removed.");
+        fetchAdmins(); // Instant Update
+        sendDiscordEmbed("Team Member Removed", `User removed by Boss.`, 15105570); 
+    });
+};
+
+window.renderAdmins = function(admins = currentAdmins) {
+    const tbody = document.getElementById('admin-table-body');
+    tbody.innerHTML = '';
+    
+    const isOwner = currentUser.role === ROLES.OWNER;
+
+    admins.forEach(admin => {
+        const isTargetBoss = admin.phone === BOSS_PHONE;
+        const showDelete = isOwner && !isTargetBoss;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><div style="font-weight:600">${admin.name}</div></td>
+            <td>${admin.phone}</td>
+            <td><span style="font-weight:bold; color:${isTargetBoss?'#92400e':'#475569'}">${admin.role || 'Admin'}</span></td>
+            <td>${admin.discord || '-'}</td>
+            <td>${showDelete ? `<button class="close-btn" onclick="removeAdmin('${admin.id}')"><i data-lucide="trash"></i></button>` : ''}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    if(window.lucide) lucide.createIcons();
+};
+
+/* --- SYSTEM SETTINGS --- */
+window.saveSettings = async function() {
+    if (currentUser.role === ROLES.STAFF) {
+        return showAlert("ACCESS DENIED: Staff cannot modify settings.", "error");
+    }
+
+    const url = document.getElementById('webhookUrl').value;
+    if(!url) return showAlert("Please enter a valid webhook URL.", "error");
+    
+    const { error } = await supabase.from('system_settings').upsert({ id: 1, webhook_url: url });
+    
+    if(error) showAlert(error.message, "error");
+    else {
+        GLOBAL_WEBHOOK_URL = url;
+        showAlert("Configuration Saved.");
+        sendDiscordEmbed("System Config Updated", `Webhook URL updated by ${currentUser.name}.`, 3447003);
+    }
+};
+
+window.toggleDowntimeMode = function() {
+    const isDown = document.getElementById('downtimeToggle').checked;
+
+    if (currentUser.role === ROLES.STAFF) {
+        showAlert("ACCESS DENIED: Staff cannot toggle Maintenance Mode.", "error");
+        document.getElementById('downtimeToggle').checked = !isDown; 
+        return;
+    }
+    
+    const msg = isDown ? "Activate Maintenance Mode? (Clients will be locked)" : "Go Online?";
+    
+    showConfirm(msg, async () => {
+        const { error } = await supabase.from('system_settings').upsert({ id: 1, downtime_active: isDown });
+
+        if(error) {
+            showAlert("Failed to update status.", "error");
+            document.getElementById('downtimeToggle').checked = !isDown;
+        } else {
+            sendDiscordEmbed("System Status Change", isDown ? "⚠️ **MAINTENANCE MODE ACTIVATED**" : "✅ **SYSTEM ONLINE**", isDown ? 15548997 : 5763719);
+            updateStatusUI(isDown); // Instant Local Update
+        }
+    });
+};
+
+/* --- DISCORD WEBHOOKS (EMBED FORMAT) --- */
+async function sendDiscordEmbed(title, description, color) {
+    if (GLOBAL_WEBHOOK_URL) {
+        const payload = {
+            embeds: [{
+                title: title,
+                description: description,
+                color: color,
+                footer: { text: "FuelMaster Admin System" },
+                timestamp: new Date().toISOString()
+            }]
+        };
+        try {
+            await fetch(GLOBAL_WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+        } catch (e) { console.error("Webhook Failed:", e); }
+    }
+}
+
+/* --- UI HELPERS --- */
+window.toggleSidebar = function() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+};
+
+window.addTankRow = function(name = "", type = "") {
+    const list = document.getElementById('tank-list');
+    const div = document.createElement('div');
+    div.className = 'tank-row-item';
+    
+    let options = `<option value="" disabled ${!type ? 'selected' : ''}>Select Config</option>`;
+    ALLOWED_TANK_TYPES.forEach(t => {
+        options += `<option value="${t}" ${type === t ? 'selected' : ''}>${t}</option>`;
+    });
+
+    div.innerHTML = `
+        <input type="text" placeholder="Tank Name" class="t-name" style="flex:1" value="${name}" autocomplete="off">
+        <select class="t-type" style="flex:1; padding:10px; border-radius:10px; border:1px solid var(--border); background:var(--input-bg); color:var(--text-main)">
+            ${options}
         </select>
+        <button class="close-btn" onclick="this.parentElement.remove()"><i data-lucide="trash-2"></i></button>
     `;
-    const btn = document.createElement('button');
-    btn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-    btn.style.cssText = "color:var(--danger); background:none; border:1px solid var(--danger); border-radius:6px; cursor:pointer; padding:8px 12px;";
-    btn.onclick = () => row.remove();
-    row.appendChild(btn);
-    container.appendChild(row);
+    list.appendChild(div);
+    if(window.lucide) lucide.createIcons(); 
 };
 
-// --- GLOBAL SETTINGS ---
-async function loadGlobalSettings() {
-    onSnapshot(doc(db, "settings", "global"), (snap) => {
-        if(snap.exists()) {
-            const d = snap.data();
-            document.getElementById('confWebhook').value = d.discordWebhook || "";
-            document.getElementById('globalDowntimeToggle').checked = d.downtimeActive || false;
-            document.getElementById('globalDowntimeMsg').value = d.downtimeMsg || "";
-        }
-    });
-}
+window.editStation = function(stationId) {
+    const station = currentStations.find(s => s.station_id === stationId);
+    if (!station) return;
 
-window.toggleGlobalDowntime = async () => {
-    const checkbox = document.getElementById('globalDowntimeToggle');
-    const isChecked = checkbox.checked; 
-    const msg = document.getElementById('globalDowntimeMsg').value || "Maintenance";
+    document.getElementById('stId').value = station.station_id;
+    document.getElementById('stName').value = station.name;
+    document.getElementById('stTheme').value = station.theme;
+    document.getElementById('stNotes').value = station.location || '';
+    document.getElementById('stUser').value = station.manager_user;
+    document.getElementById('stPass').value = station.manager_pass;
 
-    await setDoc(doc(db, "settings", "global"), {
-        downtimeActive: isChecked,
-        downtimeMsg: msg
-    }, { merge: true });
-
-    sendDiscordLog(
-        isChecked ? "🔴 Global Lock ACTIVATED" : "🟢 Global Lock REMOVED",
-        isChecked ? `Reason: ${msg}` : "System Online",
-        currentUserProfile.nickname, currentUserProfile.discordId, "global"
-    );
-};
-
-window.saveGlobalConfig = async () => {
-    const hook = document.getElementById('confWebhook').value;
-    await setDoc(doc(db, "settings", "global"), { discordWebhook: hook }, { merge: true });
-    alert("Configuration Saved");
-};
-
-// --- INITIAL SETUP ---
-window.runInitialSetup = async () => {
-    const mobile = document.getElementById('setupMobile').value;
-    const pass = document.getElementById('setupPass').value;
-    const nick = document.getElementById('setupNick').value;
-    const discord = document.getElementById('setupDiscord').value;
-
-    try {
-        const cred = await createUserWithEmailAndPassword(auth, mobile + DOMAIN, pass);
-        await setDoc(doc(db, "users", cred.user.uid), {
-            mobile, role: 'super_admin', nickname: nick, discordId: discord
+    const list = document.getElementById('tank-list');
+    list.innerHTML = ''; 
+    if (station.tanks && Array.isArray(station.tanks)) {
+        station.tanks.forEach(tank => {
+            addTankRow(tank.name, tank.type);
         });
-        await setDoc(doc(db, "settings", "global"), { discordWebhook: "" });
-        alert("Setup Complete. Please Login.");
-        location.reload();
-    } catch(e) { handleAuthError(e); }
+    }
+
+    document.getElementById('stationModalTitle').innerText = "Edit Station";
+    document.getElementById('btnSaveStation').innerText = "Update Station";
+    document.getElementById('stationModal').style.display = 'flex';
 };
 
-window.closeModal = (id) => document.getElementById(id).style.display = 'none';
-window.showTab = (id) => {
-    document.querySelectorAll('.tab-pane').forEach(e => e.style.display = 'none');
-    document.getElementById('tab-'+id).style.display = 'block';
-    document.querySelectorAll('.nav-link').forEach(e => e.classList.remove('active'));
-    event.currentTarget.classList.add('active');
+window.openStationModal = function() {
+    document.getElementById('stId').value = ''; 
+    document.getElementById('stName').value = '';
+    document.getElementById('stNotes').value = '';
+    document.getElementById('stUser').value = '';
+    document.getElementById('stPass').value = '';
+    document.getElementById('tank-list').innerHTML = '';
+    
+    document.getElementById('stationModalTitle').innerText = "Add New Station";
+    document.getElementById('btnSaveStation').innerText = "Create Station";
+    
+    addTankRow(); 
+    document.getElementById('stationModal').style.display = 'flex';
 };
-window.showSetup = () => document.getElementById('setup-modal').style.display = 'flex';
+
+window.openModal = function(id) { document.getElementById(id).style.display = 'flex'; };
+window.closeModal = function(id) { document.getElementById(id).style.display = 'none'; };
+window.switchTab = function(tabId) {
+    document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+    document.getElementById(`view-${tabId}`).classList.add('active');
+};
+window.toggleDarkMode = function() { document.body.classList.toggle('dark-mode'); if(window.lucide) lucide.createIcons(); };
