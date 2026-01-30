@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'sb_publishable_mP-3LuhOE7uXLOV5t4IrBg_WWvUUmmb';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- CONSTANTS ---
-const BOSS_PHONE = "9875345863"; // Kept for reference in admin table logic if needed, but not for backdoor
+const BOSS_PHONE = "9875345863"; // Kept for reference in admin table logic
 const ROLES = {
     OWNER: 'Owner',
     MODERATOR: 'Moderator',
@@ -206,11 +206,8 @@ function applyRolePermissions() {
     const hasSettingsAccess = isOwner || isMod;
 
     if (webhookInput) webhookInput.disabled = !hasSettingsAccess;
-    if (settingsBtn) {
-        settingsBtn.disabled = !hasSettingsAccess;
-        if(!hasSettingsAccess) settingsBtn.style.opacity = '0.5';
-    }
-
+    // Don't disable the entire view button, just internal inputs
+    
     // 2. User Management
     const addAdminBtn = document.querySelector('#view-team .primary-btn');
     if (addAdminBtn) addAdminBtn.style.display = isOwner ? 'flex' : 'none';
@@ -292,7 +289,6 @@ window.saveStation = async function() {
         if(!error) sendDiscordEmbed("Station Updated", `Station **${name}** was updated by ${currentUser.name} (${currentUser.role}).`, 3447003); 
     } else {
         stationData.station_id = "ST-" + Math.floor(Math.random() * 10000);
-        // Explicitly adding created_at for sorting new items
         stationData.created_at = new Date().toISOString(); 
         const res = await supabase.from('stations').insert([stationData]);
         error = res.error;
@@ -304,7 +300,6 @@ window.saveStation = async function() {
     } else {
         window.closeModal('stationModal');
         showAlert("Station Saved Successfully!");
-        // INSTANTLY UPDATE LOCAL VIEW
         fetchStations();
     }
 };
@@ -319,7 +314,7 @@ window.deleteStation = function(id) {
         if (error) showAlert(error.message, "error");
         else {
             showAlert("Station deleted.");
-            fetchStations(); // INSTANT UPDATE
+            fetchStations(); 
             sendDiscordEmbed("Station Deleted", `Station ID **${id}** deleted by ${currentUser.name}.`, 15548997); 
         }
     });
@@ -329,20 +324,17 @@ window.renderStations = function(stations = currentStations) {
     const container = document.getElementById('stations-grid');
     const search = document.getElementById('stationSearch').value.toLowerCase();
     
-    // NEW FILTER LOGIC
     const filterTheme = document.getElementById('filterTheme').value;
     const sortDate = document.getElementById('sortDate').value;
 
     container.innerHTML = '';
 
-    // 1. Filter
     let filtered = stations.filter(st => {
         const matchesSearch = (st.name && st.name.toLowerCase().includes(search)) || (st.station_id && st.station_id.toLowerCase().includes(search));
         const matchesTheme = filterTheme === 'all' || st.theme === filterTheme;
         return matchesSearch && matchesTheme;
     });
 
-    // 2. Sort
     filtered.sort((a, b) => {
         const dateA = new Date(a.created_at || 0);
         const dateB = new Date(b.created_at || 0);
@@ -410,7 +402,7 @@ window.addSuperAdmin = async function() {
         window.closeModal('adminModal');
         showAlert("User added successfully.");
         sendDiscordEmbed("Team Member Added", `**${name}** added as **${role}** by Boss.`, 5763719);
-        fetchAdmins(); // Instant Update
+        fetchAdmins();
     }
 };
 
@@ -422,7 +414,7 @@ window.removeAdmin = function(id) {
     showConfirm("Remove access for this user?", async () => {
         await supabase.from('admins').delete().eq('id', id); 
         showAlert("User removed.");
-        fetchAdmins(); // Instant Update
+        fetchAdmins(); 
         sendDiscordEmbed("Team Member Removed", `User removed by Boss.`, 15105570); 
     });
 };
@@ -488,7 +480,75 @@ window.toggleDowntimeMode = function() {
             document.getElementById('downtimeToggle').checked = !isDown;
         } else {
             sendDiscordEmbed("System Status Change", isDown ? "⚠️ **MAINTENANCE MODE ACTIVATED**" : "✅ **SYSTEM ONLINE**", isDown ? 15548997 : 5763719);
-            updateStatusUI(isDown); // Instant Local Update
+            updateStatusUI(isDown); 
+        }
+    });
+};
+
+/* --- NEW FEATURE: DATABASE ASSET MANAGEMENT (From upload.html) --- */
+
+window.uploadAsset = async function(type) {
+    if (currentUser.role === ROLES.STAFF) {
+        return showAlert("ACCESS DENIED: Staff cannot update system assets.", "error");
+    }
+
+    let inputId = type === 'density' ? 'densityInput' : 'chartsInput';
+    let rawContent = document.getElementById(inputId).value;
+    let dataToUpload = null;
+    let dbKey = type === 'density' ? 'density_table' : 'tank_charts';
+
+    if (!rawContent.trim()) {
+        return showAlert("Please paste the JS content first.", "error");
+    }
+
+    try {
+        if (type === 'density') {
+            // Logic to parse densityData.js (removes 'const densityTable =' and parses object)
+            const cleanDensity = rawContent.replace(/const\s+densityTable\s*=\s*/, '').replace(/;\s*$/, '');
+            dataToUpload = new Function('return ' + cleanDensity)();
+        } else {
+            // Logic to parse charts.js (removes 'export' and captures exports)
+            const fakeScope = {};
+            const scriptContent = rawContent.replace(/export\s+const/g, 'exports.');
+            new Function('exports', scriptContent)(fakeScope);
+            dataToUpload = fakeScope;
+        }
+
+        if (!dataToUpload) throw new Error("Parsed data is empty");
+
+        const { error } = await supabase.from('system_assets').upsert({
+            key: dbKey,
+            data: dataToUpload
+        });
+
+        if (error) throw error;
+
+        showAlert(`✅ ${type === 'density' ? 'Density Data' : 'Charts'} updated successfully!`);
+        sendDiscordEmbed("System Asset Updated", `**${dbKey}** was updated by ${currentUser.name}.`, 5763719);
+
+    } catch (err) {
+        console.error(err);
+        showAlert("Parsing Error: " + err.message, "error");
+    }
+};
+
+window.deleteAsset = function(dbKey) {
+    if (currentUser.role === ROLES.STAFF) {
+        return showAlert("ACCESS DENIED: Staff cannot delete system assets.", "error");
+    }
+
+    showConfirm(`⚠️ remove the asset '${dbKey}'? This will break client calculators until re-uploaded.`, async () => {
+        const { error } = await supabase.from('system_assets').delete().eq('key', dbKey);
+        
+        if (error) {
+            showAlert(error.message, "error");
+        } else {
+            showAlert("Asset removed from database.");
+            sendDiscordEmbed("System Asset Deleted", `**${dbKey}** was REMOVED by ${currentUser.name}.`, 15548997);
+            
+            // Clear the input box to reflect the reset
+            if(dbKey === 'density_table') document.getElementById('densityInput').value = '';
+            if(dbKey === 'tank_charts') document.getElementById('chartsInput').value = '';
         }
     });
 };
