@@ -1,21 +1,25 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-    /* LIGHT THEME DEFAULT */
+    /* --- LIGHT THEME DEFAULT --- */
     --bg-body: #f1f5f9;
     --bg-card: #ffffff;
     --bg-sidebar: #ffffff;
     --bg-input: #f8fafc;
     --text-main: #0f172a;
     --text-muted: #64748b;
+    --text-inverse: #ffffff;
     --border: #e2e8f0;
     
     --primary: #2563eb;       /* Royal Blue */
+    --primary-dark: #1e40af;
     --primary-hover: #1d4ed8;
     --primary-glow: rgba(37, 99, 235, 0.2);
     
     --danger: #ef4444;
+    --danger-bg: #fee2e2;
     --success: #10b981;
+    --warning: #f59e0b;
     --accent: #2563eb;
 
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
@@ -23,16 +27,23 @@
     --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
     
     --glass-border: 1px solid rgba(0,0,0,0.05);
+    
+    /* Layout */
+    --sidebar-width: 280px;
+    --radius: 12px;
 }
 
 body.dark-mode {
-    /* DARK THEME OVERRIDES */
+    /* --- DARK THEME OVERRIDES --- */
     --bg-body: #020617;       /* Very Dark Slate */
     --bg-card: #1e293b;       /* Slate 800 */
     --bg-sidebar: #0f172a;    /* Slate 900 */
     --bg-input: #020617;
+    
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
+    --text-inverse: #f1f5f9;
+    
     --border: #334155;
     
     --primary: #3b82f6;       /* Lighter Blue for Dark Mode */
@@ -46,118 +57,60 @@ body.dark-mode {
     --glass-border: 1px solid rgba(255,255,255,0.08);
 }
 
-* { 
-    box-sizing: border-box; 
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; 
-}
+* { box-sizing: border-box; transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
 
 /* --- GLOBAL LAYOUT RESET --- */
 body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background: var(--bg-body);
-    color: var(--text-main);
-    
-    /* FIX: Force body to take full height and NOT scroll */
-    height: 100vh;
-    width: 100vw;
-    overflow: hidden; /* Prevents the whole page from bouncing */
-    
-    -webkit-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
+    margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg-body); color: var(--text-main);
+    height: 100vh; width: 100vw; overflow: hidden;
+    -webkit-user-select: none; -ms-user-select: none; user-select: none;
 }
 
-/* Allow text selection in Inputs and Textareas only */
-input, textarea {
-    -webkit-user-select: text;
-    user-select: text;
-}
+/* Allow text selection in Inputs and Textareas */
+input, textarea { -webkit-user-select: text; user-select: text; }
 
 /* --- 1. ADMIN LAYOUT CONTAINER --- */
-/* This container holds Sidebar + Main Content side-by-side */
-.admin-layout { 
-    display: flex; 
-    height: 100vh; 
-    width: 100%;
-    overflow: hidden; /* Ensures no outer scrolling */
-}
+.admin-layout { display: flex; height: 100vh; width: 100%; overflow: hidden; }
 
 /* --- 2. SIDEBAR (Fixed Left) --- */
 .sidebar {
-    width: 280px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border);
-    padding: 25px 20px;
-    display: flex; 
-    flex-direction: column; 
-    
-    /* FIX: Sidebar takes full height but allows internal scrolling if menu is long */
-    height: 100%; 
-    flex-shrink: 0;
-    overflow-y: auto; 
-    z-index: 999;
-    
-    transition: transform 0.3s ease;
+    width: var(--sidebar-width); background: var(--bg-sidebar);
+    border-right: 1px solid var(--border); padding: 25px 20px;
+    display: flex; flex-direction: column; height: 100%; flex-shrink: 0;
+    overflow-y: auto; z-index: 999; transition: transform 0.3s ease;
 }
 
-/* BRAND HEADER & LOGO LOCKUP */
-.sidebar-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 5px 30px 5px;
-    flex-shrink: 0;
-}
-
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; padding: 0 5px 30px 5px; flex-shrink: 0; }
 .brand-lockup { display: flex; align-items: center; gap: 12px; }
 .brand-icon { width: 32px; height: 32px; color: var(--text-main); stroke-width: 2.5px; }
 .brand-text { font-family: 'Inter', sans-serif; font-size: 1.5rem; line-height: 1; display: flex; gap: 6px; align-items: center; }
 .txt-fm { font-weight: 800; color: var(--text-main); }
 .txt-admin { font-weight: 700; color: var(--primary); }
 
-/* User Profile */
 .user-profile {
-    display: flex; align-items: center; gap: 12px;
-    padding: 16px; 
-    background: var(--bg-input);
-    border-radius: 12px; 
-    margin-bottom: 30px;
-    flex-shrink: 0;
+    display: flex; align-items: center; gap: 12px; padding: 16px; 
+    background: var(--bg-input); border-radius: 12px; margin-bottom: 30px; flex-shrink: 0;
 }
 .avatar { 
-    width: 42px; height: 42px; 
-    background: var(--primary); color: white;
+    width: 42px; height: 42px; background: var(--primary); color: white;
     border-radius: 50%; display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 0.95rem;
 }
 .user-info h4 { margin: 0; font-size: 0.95rem; color: var(--text-main); font-weight: 600; }
 .user-info span { font-size: 0.8rem; color: var(--text-muted); }
 
-/* Navigation */
 .sidebar-nav { flex: 1; }
-
 .nav-link {
-    display: flex; align-items: center; gap: 14px;
-    padding: 14px 16px; margin-bottom: 6px;
-    border-radius: 8px; color: var(--text-muted);
-    font-weight: 500; cursor: pointer; transition: 0.2s;
+    display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: 6px;
+    border-radius: 8px; color: var(--text-muted); font-weight: 500; cursor: pointer; transition: 0.2s;
     background: transparent; border: none; font-size: 1rem; width: 100%; text-align: left;
 }
 .nav-link:hover { background: var(--bg-body); color: var(--text-main); }
 .nav-link.active { background: transparent; color: var(--primary); font-weight: 700; }
 .nav-link.active i { stroke-width: 2.5px; }
 
-/* SIDEBAR FOOTER - PINNED TO BOTTOM */
-.sidebar-footer { 
-    margin-top: auto; 
-    padding-top: 1.5rem; 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    flex-shrink: 0;
-}
+.sidebar-footer { margin-top: auto; padding-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 .dark-mode-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.95rem; color: var(--text-muted); font-weight: 500; }
 .dark-mode-toggle:hover { color: var(--text-main); }
 .logout-btn { 
@@ -169,16 +122,8 @@ input, textarea {
 
 /* --- 3. MAIN CONTENT (Scrollable Area) --- */
 .main-content { 
-    flex: 1; 
-    height: 100%;
-    padding: 40px; 
-    background: var(--bg-body);
-    
-    /* FIX: This enables independent scrolling for the right side */
-    overflow-y: auto; 
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
-    position: relative;
+    flex: 1; height: 100%; padding: 40px; background: var(--bg-body);
+    overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; position: relative;
 }
 
 .view-section { display: none; animation: fadeIn 0.3s ease-out; padding-bottom: 40px; }
@@ -192,7 +137,7 @@ input, textarea {
 .login-wrapper {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: radial-gradient(circle at top, #1e293b, #020617);
-    display: flex; justify-content: center; align-items: center; z-index: 9999;
+    display: none; justify-content: center; align-items: center; z-index: 9999;
 }
 .login-card {
     background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px);
@@ -214,9 +159,8 @@ input, textarea {
     color: white; font-size: 1rem; transition: 0.3s;
 }
 .login-card input:focus { border-color: var(--primary); background: rgba(0, 0, 0, 0.6); outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
-.login-card label { display: none; } /* Hide standard labels in login */
+.login-card label { display: none; }
 
-/* Password Toggle */
 .pass-wrapper { position: relative; width: 100%; }
 .pass-wrapper input { padding-right: 45px; }
 .toggle-pass-btn {
@@ -227,7 +171,6 @@ input, textarea {
 .toggle-pass-btn:hover { color: white; }
 .toggle-pass-btn svg { width: 20px; height: 20px; }
 
-/* Remember Me Checkbox */
 .remember-row { display: flex; justify-content: flex-start; margin-bottom: 20px; width: 100%; padding-left: 5px; }
 .login-card label.custom-checkbox { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.9rem; color: #94a3b8; text-transform: none; font-weight: 500; }
 .custom-checkbox input { display: none; }
@@ -379,8 +322,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 @media (max-width: 768px) {
     /* MOBILE: Sidebar becomes a drawer */
-    .admin-layout { flex-direction: column; } /* Stack mobile header on top */
-    
+    .admin-layout { flex-direction: column; } 
     .sidebar { 
         position: fixed; left: -280px; top: 0; bottom: 0; height: 100%; 
         box-shadow: 10px 0 20px rgba(0,0,0,0.2); z-index: 6000;
@@ -393,14 +335,49 @@ input:checked + .slider:before { transform: translateX(20px); }
     .mobile-close-btn { display: block; }
     
     /* MOBILE: Main Content fills the rest of screen */
-    .main-content { 
-        padding: 20px; 
-        height: auto; /* Allow natural flow on mobile if preferred, or maintain strict height */
-        flex: 1;
-    }
+    .main-content { padding: 20px; height: auto; flex: 1; }
     
     .view-header h1 { font-size: 1.5rem; }
     .form-row { flex-direction: column; gap: 0; }
     .toolbar { flex-direction: column; align-items: stretch; }
     .filter-group { flex-direction: column; width: 100%; }
+    
+    /* NEW: Action Rows Stack on Mobile */
+    .chart-delete-group {
+        border-left: none; padding-left: 0;
+        border-top: 1px solid var(--border);
+        padding-top: 15px; margin-top: 5px; width: 100%;
+    }
+    .action-row button, .action-row select { flex: 1; }
+}
+
+/* =========================================
+   === NEW UTILITIES FOR SETTINGS & CHARTS ===
+   ========================================= */
+
+/* Fixes the layout of the Broadcast buttons */
+.action-row {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;
+}
+
+/* Fixes the layout of the Tank Chart controls */
+.chart-actions {
+    display: flex; gap: 10px; margin-top: 10px; align-items: center; flex-wrap: wrap;
+}
+
+/* The separator line for the Delete section */
+.chart-delete-group {
+    flex: 1; border-left: 1px solid var(--border); padding-left: 15px;
+    display: flex; gap: 10px; align-items: center; min-width: 250px; 
+}
+
+/* Danger Button Variant (Red) */
+.btn-danger {
+    color: var(--danger) !important; border-color: var(--danger) !important;
+}
+.btn-danger:hover {
+    background: #fee2e2 !important; 
+}
+.dark-mode .btn-danger:hover {
+    background: rgba(239, 68, 68, 0.2) !important;
 }
