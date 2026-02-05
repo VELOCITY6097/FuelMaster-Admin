@@ -165,12 +165,15 @@
                     </div>
                     <div class="card-body">
                         <textarea id="globalNotice" placeholder="Type a message to broadcast to all clients..." autocomplete="off"></textarea>
-                        <div class="action-row">
-                            <select id="noticeType">
+                        <div class="action-row" style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <select id="noticeType" style="flex:1;">
                                 <option value="info">ℹ️ Information</option>
                                 <option value="warning">⚠️ Warning</option>
                                 <option value="critical">🚨 Critical</option>
                             </select>
+                            <button class="secondary-btn" onclick="clearBroadcast()" style="color:var(--text-muted);">
+                                <i data-lucide="x-circle"></i> Clear
+                            </button>
                             <button class="primary-btn" onclick="saveSettings()">
                                 <i data-lucide="send"></i> Push Notification
                             </button>
@@ -280,15 +283,25 @@
                         <div class="divider"></div>
 
                         <div class="input-group">
-                            <label>2. Tank Charts (Paste content of charts.js)</label>
-                            <textarea id="chartsInput" placeholder='export const MS_15KL_CHART = { ... }' style="font-family:monospace; height:120px; font-size:0.85rem;"></textarea>
-                            <div style="display:flex; gap:10px; margin-top:10px;">
+                            <label>2. Tank Charts (Smart Manager)</label>
+                            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:5px;">
+                                Paste <code>export const NAME = { ... }</code> below to ADD or UPDATE a single chart.
+                            </p>
+                            <textarea id="chartsInput" placeholder='export const MS_20KL_CHART = { "0.5": 4.2, ... }' style="font-family:monospace; height:120px; font-size:0.85rem;"></textarea>
+                            
+                            <div style="display:flex; gap:10px; margin-top:10px; align-items:center; flex-wrap:wrap;">
                                 <button class="primary-btn" onclick="uploadAsset('charts')">
-                                    <i data-lucide="upload-cloud"></i> Upload Charts
+                                    <i data-lucide="plus-circle"></i> Add / Update Chart
                                 </button>
-                                <button class="secondary-btn" style="color:var(--danger); border-color:var(--danger)" onclick="deleteAsset('tank_charts')">
-                                    <i data-lucide="trash-2"></i> Remove
-                                </button>
+                                
+                                <div style="flex:1; border-left:1px solid var(--border); padding-left:10px; display:flex; gap:5px;">
+                                    <select id="deleteChartSelect" style="font-size:0.85rem;">
+                                        <option value="" disabled selected>Loading charts...</option>
+                                    </select>
+                                    <button class="secondary-btn" style="color:var(--danger); border-color:var(--danger);" onclick="deleteSingleChart()">
+                                        <i data-lucide="trash-2"></i> Delete
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
