@@ -21,6 +21,10 @@ let currentAdmins = [];
 let ALLOWED_TANK_TYPES = []; 
 let GLOBAL_WEBHOOK_URL = "";
 
+// Track previous states to control webhook spam
+let PREV_WEBHOOK_URL = "";
+let PREV_BROADCAST_MSG = "";
+
 /* --- INITIALIZATION --- */
 document.addEventListener('DOMContentLoaded', async () => {
     const dateOpts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -104,12 +108,21 @@ async function loadSystemConfig() {
         const { data: settingsData } = await supabase.from('system_settings').select('*').eq('id', 1).single();
         if (settingsData) {
             GLOBAL_WEBHOOK_URL = settingsData.webhook_url || "";
+            PREV_WEBHOOK_URL = GLOBAL_WEBHOOK_URL; // Initial Cache
+            PREV_BROADCAST_MSG = settingsData.broadcast_msg || "";
+
             const webhookInput = document.getElementById('webhookUrl');
             if(webhookInput) webhookInput.value = GLOBAL_WEBHOOK_URL;
             
             const downtimeToggle = document.getElementById('downtimeToggle');
             if(downtimeToggle) downtimeToggle.checked = settingsData.downtime_active;
             
+            // Populate Broadcast Fields
+            const noticeInput = document.getElementById('globalNotice');
+            if(noticeInput) noticeInput.value = settingsData.broadcast_msg || "";
+            const typeInput = document.getElementById('noticeType');
+            if(typeInput) typeInput.value = settingsData.broadcast_type || "info";
+
             updateStatusUI(settingsData.downtime_active);
         }
     } catch (e) { console.error("Config Error:", e); }
@@ -227,12 +240,21 @@ function initRealtimeListeners() {
     supabase.channel('stations-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, () => fetchStations()).subscribe();
     supabase.channel('admins-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, () => fetchAdmins()).subscribe();
     
-    supabase.channel('settings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'system_settings' }, payload => {
+    supabase.channel('settings-changes').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_settings' }, payload => {
         if(payload.new) {
             GLOBAL_WEBHOOK_URL = payload.new.webhook_url;
             updateStatusUI(payload.new.downtime_active);
+            
             const toggle = document.getElementById('downtimeToggle');
             if(toggle) toggle.checked = payload.new.downtime_active;
+            
+            // Sync local inputs if updated remotely to avoid stale data
+            const noticeInput = document.getElementById('globalNotice');
+            if(noticeInput && document.activeElement !== noticeInput) noticeInput.value = payload.new.broadcast_msg || "";
+            
+            // Update cache to avoid redundant alerts
+            PREV_WEBHOOK_URL = payload.new.webhook_url;
+            PREV_BROADCAST_MSG = payload.new.broadcast_msg;
         }
     }).subscribe();
 }
@@ -442,34 +464,48 @@ window.renderAdmins = function(admins = currentAdmins) {
     if(window.lucide) lucide.createIcons();
 };
 
-/* --- SYSTEM SETTINGS --- */
+/* --- SYSTEM SETTINGS & BROADCASTS (UPDATED) --- */
 window.saveSettings = async function() {
     if (currentUser.role === ROLES.STAFF) {
         return showAlert("ACCESS DENIED: Staff cannot modify settings.", "error");
     }
 
-    // 1. Get Webhook URL (from Settings Tab)
-    const url = document.getElementById('webhookUrl').value;
-    
-    // 2. Get Broadcast Message (from Dashboard Tab)
-    const noticeMsg = document.getElementById('globalNotice').value;
+    // 1. Get Values
+    const newUrl = document.getElementById('webhookUrl').value.trim();
+    const noticeMsg = document.getElementById('globalNotice').value.trim();
     const noticeType = document.getElementById('noticeType').value;
 
     const updateData = {
         id: 1,
-        webhook_url: url,
-        // Save these so the client can fetch them!
+        webhook_url: newUrl,
         broadcast_msg: noticeMsg,
         broadcast_type: noticeType
     };
 
     const { error } = await supabase.from('system_settings').upsert(updateData);
     
-    if(error) showAlert(error.message, "error");
-    else {
-        GLOBAL_WEBHOOK_URL = url;
+    if(error) {
+        showAlert(error.message, "error");
+    } else {
         showAlert("System Settings & Broadcast Saved.");
-        sendDiscordEmbed("System Update", `Settings updated by ${currentUser.name}. Broadcast: "${noticeMsg || 'None'}"`, 3447003);
+
+        // SMART LOGIC: Only notify about URL if it actually changed
+        if (newUrl !== PREV_WEBHOOK_URL) {
+            GLOBAL_WEBHOOK_URL = newUrl; 
+            sendDiscordEmbed("System Config Updated", `Webhook URL updated by ${currentUser.name}.`, 3447003);
+            PREV_WEBHOOK_URL = newUrl;
+        } else {
+            // URL didn't change, proceed with Broadcast notification logic
+            GLOBAL_WEBHOOK_URL = newUrl; 
+        }
+
+        // Notify about Broadcast (if changed or resent)
+        // Note: We typically notify on every explicit 'Push' action for broadcasts
+        const title = noticeMsg ? "📢 New Global Broadcast" : "🔇 Broadcast Cleared";
+        const color = noticeMsg ? 16776960 : 9807270; // Yellow vs Grey
+        sendDiscordEmbed(title, `Message: "${noticeMsg || 'None'}"\nType: ${noticeType}\nUpdated by: ${currentUser.name}`, color);
+        
+        PREV_BROADCAST_MSG = noticeMsg;
     }
 };
 
@@ -482,7 +518,7 @@ window.toggleDowntimeMode = function() {
         return;
     }
     
-    const msg = isDown ? "Activate Maintenance Mode? (Clients will be locked)" : "Go Online?";
+    const msg = isDown ? "Activate Maintenance Mode? (Logs out all clients)" : "Go Online?";
     
     showConfirm(msg, async () => {
         const { error } = await supabase.from('system_settings').upsert({ id: 1, downtime_active: isDown });
@@ -662,4 +698,3 @@ window.switchTab = function(tabId) {
     document.getElementById(`view-${tabId}`).classList.add('active');
 };
 window.toggleDarkMode = function() { document.body.classList.toggle('dark-mode'); if(window.lucide) lucide.createIcons(); };
-
