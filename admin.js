@@ -448,16 +448,28 @@ window.saveSettings = async function() {
         return showAlert("ACCESS DENIED: Staff cannot modify settings.", "error");
     }
 
+    // 1. Get Webhook URL (from Settings Tab)
     const url = document.getElementById('webhookUrl').value;
-    if(!url) return showAlert("Please enter a valid webhook URL.", "error");
     
-    const { error } = await supabase.from('system_settings').upsert({ id: 1, webhook_url: url });
+    // 2. Get Broadcast Message (from Dashboard Tab)
+    const noticeMsg = document.getElementById('globalNotice').value;
+    const noticeType = document.getElementById('noticeType').value;
+
+    const updateData = {
+        id: 1,
+        webhook_url: url,
+        // Save these so the client can fetch them!
+        broadcast_msg: noticeMsg,
+        broadcast_type: noticeType
+    };
+
+    const { error } = await supabase.from('system_settings').upsert(updateData);
     
     if(error) showAlert(error.message, "error");
     else {
         GLOBAL_WEBHOOK_URL = url;
-        showAlert("Configuration Saved.");
-        sendDiscordEmbed("System Config Updated", `Webhook URL updated by ${currentUser.name}.`, 3447003);
+        showAlert("System Settings & Broadcast Saved.");
+        sendDiscordEmbed("System Update", `Settings updated by ${currentUser.name}. Broadcast: "${noticeMsg || 'None'}"`, 3447003);
     }
 };
 
@@ -650,3 +662,4 @@ window.switchTab = function(tabId) {
     document.getElementById(`view-${tabId}`).classList.add('active');
 };
 window.toggleDarkMode = function() { document.body.classList.toggle('dark-mode'); if(window.lucide) lucide.createIcons(); };
+
