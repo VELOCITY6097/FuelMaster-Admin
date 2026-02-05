@@ -25,6 +25,8 @@ let PREV_BROADCAST_TYPE = "";
 
 /* --- INITIALIZATION --- */
 document.addEventListener('DOMContentLoaded', async () => {
+    initAutoDarkMode(); // <--- NEW: Auto-detect Dark Mode
+
     const dateOpts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const dateEl = document.getElementById('currentDate');
     if(dateEl) dateEl.innerText = new Date().toLocaleDateString('en-US', dateOpts);
@@ -43,6 +45,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await loadSystemConfig();
 });
+
+// --- NEW: AUTO DARK MODE LOGIC ---
+function initAutoDarkMode() {
+    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    // 1. Apply on Load
+    if (darkModeQuery.matches) {
+        document.body.classList.add('dark-mode');
+    }
+
+    // 2. Listen for System Changes (Real-time)
+    darkModeQuery.addEventListener('change', (e) => {
+        if (e.matches) document.body.classList.add('dark-mode');
+        else document.body.classList.remove('dark-mode');
+    });
+}
 
 /* --- UI HELPERS --- */
 window.showAlert = function(message, type = 'info') {
