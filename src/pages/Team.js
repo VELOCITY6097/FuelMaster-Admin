@@ -166,48 +166,53 @@ export const Team = () => {
 
          {/* TABLE */}
          <div className="card" style={{padding:0, overflow:'hidden'}}>
-            <table style={{width:'100%', borderCollapse:'collapse'}}>
-               <thead style={{background:'var(--bg-body)', borderBottom:'1px solid var(--border)'}}>
-                  <tr>
-                      <th style={{padding:16, textAlign:'left', color:'var(--text-muted)'}}>Name</th>
-                      <th style={{padding:16, textAlign:'left', color:'var(--text-muted)'}}>Login ID</th>
-                      <th style={{padding:16, textAlign:'left', color:'var(--text-muted)'}}>Role</th>
-                      <th style={{padding:16, textAlign:'left', color:'var(--text-muted)'}}>Discord ID</th>
-                      <th style={{width:100}}></th>
-                  </tr>
-               </thead>
-               <tbody>
-                  {admins.map(a => (
-                     <tr key={a.id} style={{borderBottom:'1px solid var(--border)'}}>
-                        <td style={{padding:16, fontWeight:500}}>{a.name}</td>
-                        <td style={{padding:16, fontFamily:'monospace'}}>{a.phone}</td>
-                        <td style={{padding:16}}>
-                            <span style={{
-                                background: a.role==='Owner' ? '#fef3c7' : (a.role==='Moderator' ? '#e0e7ff' : '#f1f5f9'), 
-                                color: a.role==='Owner' ? '#d97706' : (a.role==='Moderator' ? '#4f46e5' : '#64748b'), 
-                                padding:'4px 10px', borderRadius:20, fontSize:'0.75rem', fontWeight:700,
-                                border: `1px solid ${a.role==='Owner' ? '#fcd34d' : (a.role==='Moderator' ? '#c7d2fe' : '#cbd5e1')}`
-                            }}>
-                                {a.role.toUpperCase()}
-                            </span>
-                        </td>
-                        <td style={{padding:16, fontSize:'0.85rem', color:'var(--text-muted)'}}>
-                            {a.discord || '-'}
-                        </td>
-                        <td style={{padding:16, display:'flex', gap:10, justifyContent:'flex-end'}}>
-                           {user.role === 'Owner' && (
-                              <>
-                                 <button className="btn-secondary" style={{padding:8, borderRadius:6}} onClick={()=>openModal(a)}><Edit2 size={16}/></button>
-                                 {a.phone !== BOSS_PHONE && ( 
-                                    <button className="btn-danger" style={{padding:8, borderRadius:6}} onClick={()=>initiateRemove(a)}><Trash2 size={16}/></button>
-                                 )}
-                              </>
-                           )}
-                        </td>
+            {/* FIX: Added a wrapper div with overflowX: 'auto' 
+                This allows the table to be swiped horizontally on small screens.
+            */}
+            <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+               <table style={{width:'100%', borderCollapse:'collapse', minWidth: '600px'}}>
+                  <thead style={{background:'var(--bg-body)', borderBottom:'1px solid var(--border)'}}>
+                     <tr>
+                         <th style={{padding:16, textAlign:'left', color:'var(--text-muted)'}}>Name</th>
+                         <th style={{padding:16, textAlign:'left', color:'var(--text-muted)'}}>Login ID</th>
+                         <th style={{padding:16, textAlign:'left', color:'var(--text-muted)'}}>Role</th>
+                         <th style={{padding:16, textAlign:'left', color:'var(--text-muted)'}}>Discord ID</th>
+                         <th style={{width:100}}></th>
                      </tr>
-                  ))}
-               </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                     {admins.map(a => (
+                        <tr key={a.id} style={{borderBottom:'1px solid var(--border)'}}>
+                           <td style={{padding:16, fontWeight:500}}>{a.name}</td>
+                           <td style={{padding:16, fontFamily:'monospace'}}>{a.phone}</td>
+                           <td style={{padding:16}}>
+                               <span style={{
+                                   background: a.role==='Owner' ? '#fef3c7' : (a.role==='Moderator' ? '#e0e7ff' : '#f1f5f9'), 
+                                   color: a.role==='Owner' ? '#d97706' : (a.role==='Moderator' ? '#4f46e5' : '#64748b'), 
+                                   padding:'4px 10px', borderRadius:20, fontSize:'0.75rem', fontWeight:700,
+                                   border: `1px solid ${a.role==='Owner' ? '#fcd34d' : (a.role==='Moderator' ? '#c7d2fe' : '#cbd5e1')}`
+                               }}>
+                                   {a.role.toUpperCase()}
+                               </span>
+                           </td>
+                           <td style={{padding:16, fontSize:'0.85rem', color:'var(--text-muted)'}}>
+                               {a.discord || '-'}
+                           </td>
+                           <td style={{padding:16, display:'flex', gap:10, justifyContent:'flex-end'}}>
+                              {user.role === 'Owner' && (
+                                 <>
+                                    <button className="btn-secondary" style={{padding:8, borderRadius:6}} onClick={()=>openModal(a)}><Edit2 size={16}/></button>
+                                    {a.phone !== BOSS_PHONE && ( 
+                                       <button className="btn-danger" style={{padding:8, borderRadius:6}} onClick={()=>initiateRemove(a)}><Trash2 size={16}/></button>
+                                    )}
+                                 </>
+                              )}
+                           </td>
+                        </tr>
+                     ))}
+                  </tbody>
+               </table>
+            </div>
          </div>
 
          {/* ADD/EDIT MODAL */}
