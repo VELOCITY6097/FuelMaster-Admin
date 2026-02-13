@@ -1,70 +1,52 @@
-# Getting Started with Create React App
+# FuelMaster Admin (React v1.0)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+**Status:** Private / Internal Use Only  
+**Description:** A real-time administration dashboard for managing fuel stations, staff, and system configurations. Migrated from static HTML to **React 19** for dynamic state management and performance.
 
-## Available Scripts
+## 🛠️ Tech Stack
+* **Frontend:** React 19, React Router v7
+* **Backend/DB:** Supabase (PostgreSQL & Realtime)
+* **UI/Icons:** Lucide React, CSS Modules (Custom Dark/Light Theme)
+* **Charts:** Recharts
+* **Logging:** Discord Webhooks
 
-In the project directory, you can run:
+## 🚀 Features Overview
 
-### `npm start`
+### 1. 📊 Dashboard & Analytics
+* **Live Overview:** Real-time counters for total stations, staff, and system status.
+* **Activity Graph:** 7-day visual history using `recharts`.
+* **Status Indicators:** Visual cues for System Online vs. Maintenance Mode.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 2. ⛽ Station Management
+* **Full CRUD:** Create, Edit, and Delete stations.
+* **Tank Config:** Dynamic addition of tanks (e.g., MS_15KL, HSD_20KL) per station.
+* **Smart Search:** Filter by Brand (BPCL, IOCL, HPCL, Jio) or Station ID/Name.
+* **Quick Actions:** One-click "Copy Station ID" button.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 3. 👥 Staff & Security (RBAC)
+* **Role-Based Access:**
+    * **Owner:** Full system access (Settings, Database Assets, Team).
+    * **Moderator:** System controls & Broadcasts.
+    * **Staff:** Station management only.
+* **Authentication:** Custom Phone + PIN login with "Remember Me" functionality.
 
-### `npm test`
+### 4. ⚙️ System Control
+* **Global Broadcast:** Send push notifications (Info/Warning/Critical) to all client screens.
+* **Maintenance Mode:** Instantly lock all client applications from the admin panel.
+* **Database Assets:** Upload/Edit density tables and tank charts directly from the UI.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 5. 📝 Activity Logging
+* **Discord Integration:** Automatic logging for high-priority events (Login, Delete, Config Change).
+* **Log Types:** Color-coded embeds for easier reading (Green=Create, Red=Delete/Lock, etc.).
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 📂 Project Structure
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```text
+src/
+├── App.js           # MAIN LOGIC: Routing, Auth, Contexts, Pages
+├── logs.js          # LOGGING: Discord Webhook configurations & formatters
+├── App.css          # STYLES: Global variables, Dark mode, Component styles
+├── index.js         # ENTRY: React DOM rendering
+└── components/      # (Internal components like ReactLoader, ToastProvider)
