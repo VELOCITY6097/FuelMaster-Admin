@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Contexts
+
 import { ThemeContext } from './context/ThemeContext';
 import { AuthContext } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
