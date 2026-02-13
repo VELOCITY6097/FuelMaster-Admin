@@ -1,0 +1,1 @@
+export const BOSS_PHONE = "9875345863";
