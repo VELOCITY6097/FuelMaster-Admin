@@ -140,3 +140,9 @@ body {
   .sidebar.open { transform: translateX(0); }
   .login-card { width: 95%; padding: 30px; }
 }
+
+.modal-overlay {
+   background: rgba(0, 0, 0, 0.4);
+   backdrop-filter: blur(8px); /* The crucial glass effect */
+   -webkit-backdrop-filter: blur(8px);
+}
